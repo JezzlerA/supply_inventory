@@ -1,2 +1,2 @@
-# supply_inventory
+# WELCOME TO SUPPLY INVENTORY PROJECT
 inventory
