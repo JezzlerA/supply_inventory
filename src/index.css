@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 222 60% 18%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 40 90% 55%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 60% 18%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 222 60% 18%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 40 90% 55%;
+    --sidebar-primary-foreground: 222 60% 18%;
+    --sidebar-accent: 222 50% 25%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 50% 25%;
+    --sidebar-ring: 40 90% 55%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Shared circular logo styling */
+.logo-container {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.logo-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@keyframes logo-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-logo-fade-in {
+  animation: logo-fade-in 0.45s ease-out both;
+}
+
+/* Print-specific styles for formal report */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-family: "Times New Roman", Times, serif !important;
+    font-size: 10pt !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Hide ALL UI chrome: sidebar, header, buttons, nav */
+  .print\:hidden,
+  aside,
+  header,
+  nav,
+  [class*="sidebar"] {
+    display: none !important;
+  }
+
+  /* Reset layout: remove sidebar margin, make full width */
+  .flex-1,
+  main,
+  div[class*="ml-"] {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Ensure the outer flex container is block */
+  .min-h-screen {
+    display: block !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print-report {
+    padding: 0.5in;
+    width: 100%;
+  }
+
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin-top: 4px;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+
+  .print-table th {
+    background-color: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 8pt;
+  }
+
+  a[href*="lovable.dev"],
+  a[href*="lovable.dev"] * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+}
