@@ -100,18 +100,36 @@ const LandingPage = () => {
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 sm:pt-40 lg:pt-56 pb-16 sm:pb-24 relative z-10">
           <div className="max-w-3xl mx-auto text-center text-white">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight mb-6">
+            <motion.h1 
+              className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight mb-6"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            >
               Streamline Your{" "}
               <span className="bg-gradient-to-r from-primary via-blue-600 to-violet-600 bg-clip-text text-transparent">
                 Supply Office
               </span>{" "}
               Operations
-            </h1>
-            <p className="text-lg sm:text-xl text-slate-100/90 leading-relaxed mb-8 max-w-2xl mx-auto">
+            </motion.h1>
+            <motion.p 
+              className="text-lg sm:text-xl text-slate-100/90 leading-relaxed mb-8 max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
+            >
               A comprehensive inventory management system designed for NORSU Bais Campus. 
               Track supplies, manage requests, and generate reports effortlessly.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+            </motion.p>
+            <motion.div 
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+            >
               <motion.div 
                 whileHover={{ scale: 1.05, y: -2 }} 
                 whileTap={{ scale: 0.98 }}
@@ -133,17 +151,23 @@ const LandingPage = () => {
                   Explore Features
                 </a>
               </Button>
-            </div>
+            </motion.div>
             
             {/* Benefits list */}
-            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+            <motion.div 
+              className="flex flex-wrap justify-center gap-x-6 gap-y-2"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, delay: 0.45, ease: "easeOut" }}
+            >
               {benefits.map((benefit) => (
                 <div key={benefit} className="flex items-center gap-1.5 text-sm text-slate-100/90">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   {benefit}
                 </div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -152,7 +176,13 @@ const LandingPage = () => {
       <section id="features" className="py-20 sm:py-28 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-100/50 via-slate-100/80 to-slate-100/50" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <span className="inline-block text-xs font-semibold text-primary uppercase tracking-wider mb-3">
               Features
             </span>
@@ -165,24 +195,29 @@ const LandingPage = () => {
             <p className="text-muted-foreground max-w-lg mx-auto text-lg">
               Powerful tools designed to streamline campus supply operations.
             </p>
-          </div>
+          </motion.div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((f, idx) => (
-              <div
+              <motion.div
                 key={f.title}
                 className="group bg-white rounded-2xl border border-slate-200/80 p-6 hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1 transition-all duration-300"
-                style={{ animationDelay: `${idx * 100}ms` }}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ duration: 0.5, delay: idx * 0.1, ease: "easeOut" }}
               >
-                <div
-                  className={`w-14 h-14 rounded-2xl ${f.lightColor} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}
+                <motion.div
+                  className={`w-14 h-14 rounded-2xl ${f.lightColor} flex items-center justify-center mb-5`}
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.2 }}
                 >
                   <f.icon className={`w-7 h-7 ${f.textColor}`} />
-                </div>
+                </motion.div>
                 <h3 className="font-bold text-foreground mb-2 text-lg">{f.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {f.description}
                 </p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -192,7 +227,12 @@ const LandingPage = () => {
       <section id="about" className="py-20 sm:py-28">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div>
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            >
               <span className="inline-block text-xs font-semibold text-primary uppercase tracking-wider mb-3">
                 About the System
               </span>
@@ -216,17 +256,30 @@ const LandingPage = () => {
                   { icon: TrendingUp, text: "Reduce supply waste with accurate tracking" },
                   { icon: Shield, text: "Secure role-based access for all users" },
                   { icon: CheckCircle2, text: "Automated notifications and alerts" },
-                ].map((item) => (
-                  <div key={item.text} className="flex items-center gap-3">
+                ].map((item, idx) => (
+                  <motion.div 
+                    key={item.text} 
+                    className="flex items-center gap-3"
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true, margin: "-50px" }}
+                    transition={{ duration: 0.4, delay: 0.3 + idx * 0.1, ease: "easeOut" }}
+                  >
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <item.icon className="w-4 h-4 text-primary" />
                     </div>
                     <span className="text-foreground font-medium">{item.text}</span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            </div>
-            <div className="relative">
+            </motion.div>
+            <motion.div 
+              className="relative"
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+            >
               <div className="bg-gradient-to-br from-primary via-primary to-blue-700 rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/3" />
                 <div className="absolute bottom-0 left-0 w-40 h-40 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/4" />
@@ -250,7 +303,7 @@ const LandingPage = () => {
                   </Button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -258,29 +311,60 @@ const LandingPage = () => {
       {/* CTA */}
       <section className="py-16 sm:py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden">
+          <motion.div 
+            className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
             <div className="relative z-10">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-yellow-400 mb-6 shadow-xl shadow-accent/30">
-                <Sparkles className="w-8 h-8 text-accent-foreground" />
-              </div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4">
-                Ready to Get Started?
-              </h2>
-              <p className="text-slate-400 mb-8 max-w-lg mx-auto text-lg">
-                Log in now to access the complete inventory management dashboard and streamline your supply operations.
-              </p>
-              <Button
-                size="lg"
-                className="text-base font-semibold bg-gradient-to-r from-accent to-yellow-400 text-accent-foreground hover:opacity-90 shadow-xl shadow-accent/30 hover:shadow-2xl hover:shadow-accent/40 hover:-translate-y-0.5 transition-all duration-300"
-                asChild
+              <motion.div 
+                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-yellow-400 mb-6 shadow-xl shadow-accent/30"
+                initial={{ scale: 0 }}
+                whileInView={{ scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2, type: "spring", stiffness: 200 }}
               >
-                <Link to="/login">
-                  Login to Dashboard <ArrowRight className="w-4 h-4 ml-2" />
-                </Link>
-              </Button>
+                <Sparkles className="w-8 h-8 text-accent-foreground" />
+              </motion.div>
+              <motion.h2 
+                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3, ease: "easeOut" }}
+              >
+                Ready to Get Started?
+              </motion.h2>
+              <motion.p 
+                className="text-slate-400 mb-8 max-w-lg mx-auto text-lg"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.4, ease: "easeOut" }}
+              >
+                Log in now to access the complete inventory management dashboard and streamline your supply operations.
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.5, ease: "easeOut" }}
+              >
+                <Button
+                  size="lg"
+                  className="text-base font-semibold bg-gradient-to-r from-accent to-yellow-400 text-accent-foreground hover:opacity-90 shadow-xl shadow-accent/30 hover:shadow-2xl hover:shadow-accent/40 hover:-translate-y-0.5 transition-all duration-300"
+                  asChild
+                >
+                  <Link to="/login">
+                    Login to Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
