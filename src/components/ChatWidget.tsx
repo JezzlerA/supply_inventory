@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageCircle, X, Send, ArrowLeft, User, Megaphone, Users } from "lucide-react";
+import { MessageCircle, X, Send, ArrowLeft, User, Megaphone, Users, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,10 +22,16 @@ interface ChatUser {
   id: string;
   full_name: string;
   email: string;
+  avatar_url: string | null;
+  is_online?: boolean;
+}
+
+interface TypingStatus {
+  [key: string]: boolean;
 }
 
 const ChatWidget = () => {
-  const { user, role, profile } = useAuth();
+  const { user, role, profile: userProfile } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -33,8 +40,15 @@ const ChatWidget = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminTab, setAdminTab] = useState<"chats" | "broadcast">("chats");
   const [broadcastMessages, setBroadcastMessages] = useState<ChatMessage[]>([]);
+  const [typingStatus, setTypingStatus] = useState<TypingStatus>({});
+  const [isTyping, setIsTyping] = useState(false);
+  const [adminOnline, setAdminOnline] = useState(false);
+  const [userProfiles, setUserProfiles] = useState<Record<string, ChatUser>>({});
+  const [adminProfile, setAdminProfile] = useState<ChatUser | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const broadcastBottomRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
 
   const isAdmin = role === "admin";
   const selectedUserInfo = users.find(u => u.id === selectedUser);
@@ -51,7 +65,6 @@ const ChatWidget = () => {
         .order("created_at", { ascending: true });
       setMessages(data || []);
     } else if (!isAdmin) {
-      // Users see DMs + broadcast messages
       const { data: dms } = await supabase
         .from("chat_messages")
         .select("*")
@@ -65,7 +78,6 @@ const ChatWidget = () => {
         .eq("is_broadcast", true)
         .order("created_at", { ascending: true });
 
-      // Merge and sort
       const all = [...(dms || []), ...(broadcasts || [])].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
@@ -114,9 +126,28 @@ const ChatWidget = () => {
     if (uniqueIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name, email, avatar_url")
         .in("id", uniqueIds);
+      
+      const profileMap: Record<string, ChatUser> = {};
+      (profiles || []).forEach(p => {
+        profileMap[p.id] = { ...p, is_online: false };
+      });
+      setUserProfiles(profileMap);
       setUsers(profiles || []);
+    }
+  };
+
+  const fetchAdminProfile = async () => {
+    if (isAdmin) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url")
+      .eq("id", "00000000-0000-0000-0000-000000000001")
+      .maybeSingle();
+    
+    if (data) {
+      setAdminProfile({ ...data, is_online: false });
     }
   };
 
@@ -125,6 +156,8 @@ const ChatWidget = () => {
     if (isAdmin) {
       fetchUsers();
       fetchBroadcasts();
+    } else {
+      fetchAdminProfile();
     }
 
     const channel = supabase
@@ -175,9 +208,93 @@ const ChatWidget = () => {
     broadcastBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [broadcastMessages]);
 
+  useEffect(() => {
+    const typingChannel = supabase
+      .channel("typing-status")
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        if (payload.userId !== user?.id) {
+          setTypingStatus(prev => ({ ...prev, [payload.userId]: payload.isTyping }));
+        }
+      })
+      .on("broadcast", { event: "presence" }, ({ payload }) => {
+        if (isAdmin) {
+          const userId = payload.userId;
+          setUserProfiles(prev => ({
+            ...prev,
+            [userId]: { ...prev[userId], is_online: payload.isOnline }
+          }));
+        } else {
+          setAdminOnline(payload.isOnline);
+        }
+      })
+      .subscribe();
+
+    typingChannelRef.current = typingChannel;
+
+    return () => {
+      supabase.removeChannel(typingChannel);
+    };
+  }, [user, isAdmin]);
+
+  useEffect(() => {
+    const presenceChannel = supabase.channel("online-presence");
+    
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = presenceChannel.presenceState();
+        if (!isAdmin && state["admin"]) {
+          setAdminOnline(state["admin"].length > 0);
+        }
+      })
+      .subscribe(async () => {
+        await presenceChannel.track({ userId: user?.id, isAdmin });
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [user, isAdmin]);
+
+  const handleTyping = useCallback((value: string) => {
+    setInput(value);
+
+    if (!isTyping && value.trim()) {
+      setIsTyping(true);
+      typingChannelRef.current?.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId: user?.id, isTyping: true }
+      });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (value.trim()) {
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+        typingChannelRef.current?.send({
+          type: "broadcast",
+          event: "typing",
+          payload: { userId: user?.id, isTyping: false }
+        });
+      }, 1000);
+    }
+  }, [isTyping, user?.id]);
+
   const handleSend = async () => {
     if (!input.trim() || !user) return;
     const receiverId = isAdmin ? selectedUser : null;
+
+    if (isTyping) {
+      setIsTyping(false);
+      typingChannelRef.current?.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId: user.id, isTyping: false }
+      });
+    }
 
     await supabase.from("chat_messages").insert({
       sender_id: user.id,
@@ -219,6 +336,30 @@ const ChatWidget = () => {
     return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   };
 
+  const getAvatarComponent = (avatarUrl: string | null, name: string, size: "sm" | "md" | "lg" = "md") => {
+    const sizeClasses = {
+      sm: "w-7 h-7 text-[10px]",
+      md: "w-10 h-10 text-sm",
+      lg: "w-12 h-12 text-base"
+    };
+
+    if (avatarUrl) {
+      return (
+        <img 
+          src={avatarUrl} 
+          alt={name}
+          className={`${sizeClasses[size]} rounded-full object-cover`}
+        />
+      );
+    }
+
+    return (
+      <div className={`${sizeClasses[size]} rounded-full bg-primary/10 text-primary flex items-center justify-center`}>
+        <span className="font-semibold">{name.charAt(0).toUpperCase()}</span>
+      </div>
+    );
+  };
+
   const groupByDate = (msgs: ChatMessage[]) =>
     msgs.reduce<Record<string, ChatMessage[]>>((acc, msg) => {
       const key = new Date(msg.created_at).toDateString();
@@ -250,6 +391,24 @@ const ChatWidget = () => {
       );
     }
 
+    const showTypingIndicator = (userId: string) => {
+      const isOtherTyping = isAdmin ? typingStatus[userId] : typingStatus["admin"] || typingStatus["00000000-0000-0000-0000-000000000001"];
+      if (!isOtherTyping) return null;
+      
+      return (
+        <div className="flex items-center gap-1 px-3 py-2 bg-card border rounded-2xl rounded-bl-md max-w-[75%]">
+          <div className="flex gap-1">
+            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+          </div>
+          <span className="text-xs text-muted-foreground ml-1">
+            {isAdmin ? "User" : "Admin"} is typing...
+          </span>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-1">
         {Object.entries(grouped).map(([dateKey, dateMsgs]) => (
@@ -264,7 +423,21 @@ const ChatWidget = () => {
               const showAvatar = idx === 0 || dateMsgs[idx - 1]?.sender_id !== m.sender_id;
               const isLastInGroup = idx === dateMsgs.length - 1 || dateMsgs[idx + 1]?.sender_id !== m.sender_id;
 
-              // Broadcast messages show with a special style
+              let avatarUrl: string | null = null;
+              let senderName = "";
+              
+              if (m.is_admin_message) {
+                avatarUrl = adminProfile?.avatar_url || userProfile?.avatar_url;
+                senderName = "Admin";
+              } else if (isAdmin) {
+                const profile = userProfiles[m.sender_id];
+                avatarUrl = profile?.avatar_url || null;
+                senderName = profile?.full_name || "User";
+              } else {
+                avatarUrl = userProfile?.avatar_url || null;
+                senderName = "Admin";
+              }
+
               if (m.is_broadcast) {
                 return (
                   <div key={m.id} className={`flex justify-center ${showAvatar ? "mt-3" : "mt-0.5"}`}>
@@ -283,60 +456,61 @@ const ChatWidget = () => {
               }
 
               return (
-                <div
-                  key={m.id}
-                  className={`flex ${isMine ? "justify-end" : "justify-start"} ${showAvatar ? "mt-3" : "mt-0.5"}`}
-                >
-                  {!isMine && (
-                    <div className="w-7 flex-shrink-0 mr-1.5">
-                      {showAvatar && (
-                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                          <span className="text-[10px] font-bold">
-                            {m.is_admin_message ? "A" : (selectedUserInfo?.full_name || "U").charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className={`max-w-[75%] ${isMine ? "items-end" : "items-start"}`}>
-                    {showAvatar && !isMine && (
-                      <div className="text-[10px] text-muted-foreground font-medium ml-1 mb-0.5">
-                        {m.is_admin_message ? "Admin" : (isAdmin ? selectedUserInfo?.full_name : "Admin")}
+                <div key={m.id}>
+                  <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${showAvatar ? "mt-3" : "mt-0.5"}`}>
+                    {!isMine && (
+                      <div className="w-10 flex-shrink-0 mr-1.5">
+                        {showAvatar && getAvatarComponent(avatarUrl, senderName, "sm")}
                       </div>
                     )}
-                    <div
-                      className={`px-3 py-2 text-sm leading-relaxed ${
-                        isMine
-                          ? `bg-primary text-primary-foreground ${isLastInGroup ? "rounded-2xl rounded-br-md" : "rounded-2xl"}`
-                          : `bg-card border text-foreground ${isLastInGroup ? "rounded-2xl rounded-bl-md" : "rounded-2xl"}`
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                      <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
-                        <span className={`text-[9px] ${isMine ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
-                          {formatTime(m.created_at)}
-                        </span>
-                        {isMine && (
-                          <span className={`text-[9px] ${m.read ? "text-primary-foreground/70" : "text-primary-foreground/40"}`}>
-                            {m.read ? "✓✓" : "✓"}
+                    <div className={`max-w-[75%] ${isMine ? "items-end" : "items-start"}`}>
+                      {showAvatar && !isMine && (
+                        <div className="text-[10px] text-muted-foreground font-medium ml-1 mb-0.5">
+                          {senderName}
+                        </div>
+                      )}
+                      <div
+                        className={`px-3 py-2 text-sm leading-relaxed ${
+                          isMine
+                            ? `bg-primary text-primary-foreground ${isLastInGroup ? "rounded-2xl rounded-br-md" : "rounded-2xl"}`
+                            : `bg-card border text-foreground ${isLastInGroup ? "rounded-2xl rounded-bl-md" : "rounded-2xl"}`
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{m.message}</p>
+                        <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                          <span className={`text-[9px] ${isMine ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
+                            {formatTime(m.created_at)}
                           </span>
-                        )}
+                          {isMine && (
+                            <span className={`text-[9px] ${m.read ? "text-primary-foreground/70" : "text-primary-foreground/40"}`}>
+                              {m.read ? "✓✓" : "✓"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {isMine && (
+                      <div className="w-10 flex-shrink-0 ml-1.5">
+                        {showAvatar && getAvatarComponent(userProfile?.avatar_url || null, userProfile?.full_name || "You", "sm")}
+                      </div>
+                    )}
                   </div>
+                  {isLastInGroup && !isMine && showTypingIndicator(m.sender_id)}
                 </div>
               );
             })}
           </div>
         ))}
+        {!isMine && showTypingIndicator(isAdmin ? selectedUser || "" : "admin")}
         <div ref={ref} />
       </div>
     );
   };
 
+  const isMine = false;
+
   return (
     <>
-      {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition-all hover:scale-105"
@@ -349,21 +523,32 @@ const ChatWidget = () => {
         )}
       </button>
 
-      {/* Chat panel */}
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-[90vw] max-w-[420px] h-[70vh] max-h-[600px] bg-card border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-          {/* Header */}
           <div className="px-4 py-3 bg-primary text-primary-foreground flex items-center gap-3">
             {isAdmin && selectedUser && (
               <button onClick={() => setSelectedUser(null)} className="hover:opacity-70 transition-opacity">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center">
+            <div className="relative">
               {isAdmin && adminTab === "broadcast" && !selectedUser ? (
-                <Megaphone className="w-4 h-4" />
+                <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+              ) : isAdmin && selectedUser ? (
+                getAvatarComponent(userProfiles[selectedUser]?.avatar_url || null, userProfiles[selectedUser]?.full_name || "U", "md")
               ) : (
-                <User className="w-4 h-4" />
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
+                    {adminProfile?.avatar_url ? (
+                      <img src={adminProfile.avatar_url} alt="Admin" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-5 h-5" />
+                    )}
+                  </div>
+                  <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-primary ${adminOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -383,12 +568,13 @@ const ChatWidget = () => {
                 <div className="text-[11px] opacity-70">Send to all users</div>
               )}
               {!isAdmin && (
-                <div className="text-[11px] opacity-70">We typically reply instantly</div>
+                <div className="text-[11px] opacity-70">
+                  {adminOnline ? "Online" : "Usually replies instantly"}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Admin tabs (only when no user selected) */}
           {isAdmin && !selectedUser && (
             <div className="border-b px-2 pt-2">
               <Tabs value={adminTab} onValueChange={(v) => setAdminTab(v as "chats" | "broadcast")}>
@@ -406,7 +592,6 @@ const ChatWidget = () => {
             </div>
           )}
 
-          {/* Admin chats tab - user list */}
           {isAdmin && !selectedUser && adminTab === "chats" && (
             <div className="flex-1 overflow-y-auto">
               <div className="p-3 text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -425,10 +610,23 @@ const ChatWidget = () => {
                     onClick={() => setSelectedUser(u.id)}
                     className="w-full text-left px-4 py-3 hover:bg-muted/50 border-b transition-colors flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-semibold">
-                        {(u.full_name || "U").charAt(0).toUpperCase()}
-                      </span>
+                    <div className="relative flex-shrink-0">
+                      {u.avatar_url ? (
+                        <img 
+                          src={u.avatar_url} 
+                          alt={u.full_name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                          <span className="text-sm font-semibold">
+                            {(u.full_name || "U").charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {userProfiles[u.id]?.is_online && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{u.full_name || "Unknown User"}</div>
@@ -440,7 +638,6 @@ const ChatWidget = () => {
             </div>
           )}
 
-          {/* Admin broadcast tab */}
           {isAdmin && !selectedUser && adminTab === "broadcast" && (
             <>
               <div className="flex-1 overflow-y-auto p-3 bg-muted/20">
@@ -450,7 +647,7 @@ const ChatWidget = () => {
                 <Input
                   placeholder="Type an announcement..."
                   value={input}
-                  onChange={e => setInput(e.target.value)}
+                  onChange={e => handleTyping(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleBroadcast()}
                   className="flex-1 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
                 />
@@ -466,28 +663,41 @@ const ChatWidget = () => {
             </>
           )}
 
-          {/* DM messages area (admin with selected user, or regular user) */}
           {(!isAdmin || selectedUser) && (
             <>
               <div className="flex-1 overflow-y-auto p-3 bg-muted/20">
                 {renderMessages(messages, bottomRef)}
               </div>
-              <div className="p-3 border-t bg-card flex items-end gap-2">
-                <Input
-                  placeholder="Type a message..."
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
-                  className="flex-1 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={!input.trim()}
-                  className="rounded-full w-9 h-9 flex-shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
+              <div className="p-3 border-t bg-card">
+                {((isAdmin && selectedUser && typingStatus[selectedUser]) || (!isAdmin && typingStatus["admin"] || typingStatus["00000000-0000-0000-0000-000000000001"])) && (
+                  <div className="flex items-center gap-1 mb-2 px-1">
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {isAdmin && selectedUser ? "User is typing..." : "Admin is typing..."}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <Input
+                    placeholder="Type a message..."
+                    value={input}
+                    onChange={e => handleTyping(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
+                    className="flex-1 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                    className="rounded-full w-9 h-9 flex-shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}
