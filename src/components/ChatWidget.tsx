@@ -45,10 +45,13 @@ const ChatWidget = () => {
   const [adminOnline, setAdminOnline] = useState(false);
   const [userProfiles, setUserProfiles] = useState<Record<string, ChatUser>>({});
   const [adminProfile, setAdminProfile] = useState<ChatUser | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const lastMessageTimestampRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const broadcastBottomRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isAdmin = role === "admin";
   const selectedUserInfo = users.find(u => u.id === selectedUser);
@@ -162,18 +165,47 @@ const ChatWidget = () => {
 
     const channel = supabase
       .channel("chat-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => {
-        fetchMessages();
-        fetchUnread();
-        if (isAdmin) {
-          fetchUsers();
-          fetchBroadcasts();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+        const newTimestamp = payload.new.created_at;
+        if (newTimestamp !== lastMessageTimestampRef.current) {
+          lastMessageTimestampRef.current = newTimestamp;
+          fetchMessages();
+          fetchUnread();
+          if (isAdmin) {
+            fetchUsers();
+            fetchBroadcasts();
+          }
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setRealtimeConnected(true);
+        } else {
+          setRealtimeConnected(false);
+        }
+      });
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user, role]);
+    if (!pollingIntervalRef.current) {
+      pollingIntervalRef.current = setInterval(() => {
+        if (!realtimeConnected) {
+          fetchMessages();
+          fetchUnread();
+          if (isAdmin) {
+            fetchUsers();
+            fetchBroadcasts();
+          }
+        }
+      }, 3000);
+    }
+
+    return () => { 
+      supabase.removeChannel(channel);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [user, role, realtimeConnected, lastMessageTimestampRef.current]);
 
   useEffect(() => {
     if (open) {
