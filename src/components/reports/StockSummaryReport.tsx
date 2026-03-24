@@ -10,6 +10,8 @@ const StockSummaryReport = () => {
   const [inventory, setInventory] = useState<any[]>([]);
   const [distributions, setDistributions] = useState<any[]>([]);
   const [receiving, setReceiving] = useState<any[]>([]);
+  const [offices, setOffices] = useState<string[]>([]);
+  const [selectedOffice, setSelectedOffice] = useState<string>("All Offices");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,6 +23,9 @@ const StockSummaryReport = () => {
       setInventory(invRes.data || []);
       setDistributions(distRes.data || []);
       setReceiving(recvRes.data || []);
+
+      const uniqueOffices = [...new Set((distRes.data || []).map(d => d.receiving_office))].filter(Boolean) as string[];
+      setOffices(uniqueOffices.sort());
     };
     fetchData();
   }, []);
@@ -56,9 +61,21 @@ const StockSummaryReport = () => {
       <div className="print:hidden space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Stock Summary & Distribution Office</h2>
-          <Button onClick={handlePrint} className="gap-1.5">
-            <Printer className="w-4 h-4" /> Print Report
-          </Button>
+          <div className="flex items-center gap-3">
+            <select 
+              className="h-9 px-3 rounded-md border text-sm"
+              value={selectedOffice}
+              onChange={(e) => setSelectedOffice(e.target.value)}
+            >
+              <option value="All Offices">All Offices</option>
+              {offices.map(o => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+            <Button onClick={handlePrint} className="gap-1.5 py-2">
+              <Printer className="w-4 h-4" /> Print Report
+            </Button>
+          </div>
         </div>
 
         {/* Stock Summary */}
@@ -101,17 +118,20 @@ const StockSummaryReport = () => {
 
         {/* Distribution by Office */}
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 border-b">
             <CardTitle className="text-base">Distribution by Office</CardTitle>
           </CardHeader>
-          <CardContent>
-            {officeData.map(o => (
-              <div key={o.office} className="mb-6">
-                <h4 className="font-medium text-primary mb-2">{o.office} ({o.total} items total)</h4>
+          <CardContent className="pt-6">
+            {officeData.filter(o => selectedOffice === "All Offices" || o.office === selectedOffice).map(o => (
+              <div key={o.office} className="mb-6 border rounded-lg overflow-hidden">
+                <div className="bg-muted px-4 py-2 font-medium text-primary flex justify-between">
+                  <span>{o.office}</span>
+                  <span>{o.total} items total</span>
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Item</TableHead>
+                      <TableHead className="w-2/3">Item</TableHead>
                       <TableHead className="text-center">Quantity Issued</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -126,7 +146,9 @@ const StockSummaryReport = () => {
                 </Table>
               </div>
             ))}
-            {officeData.length === 0 && <p className="text-muted-foreground text-sm">No distributions yet</p>}
+            {officeData.filter(o => selectedOffice === "All Offices" || o.office === selectedOffice).length === 0 && (
+              <p className="text-muted-foreground text-sm text-center py-4">No distributions found for this office</p>
+            )}
           </CardContent>
         </Card>
 
@@ -255,10 +277,12 @@ const StockSummaryReport = () => {
         </table>
 
         {/* Distribution by Office */}
-        <h3 className="section-header font-bold text-sm mt-8 mb-2">Distribution by Office</h3>
-        {officeData.map(o => (
+        <h3 className="section-header font-bold text-sm mt-8 mb-2">
+          {selectedOffice === "All Offices" ? "Distribution by Office" : `Distribution for ${selectedOffice}`}
+        </h3>
+        {officeData.filter(o => selectedOffice === "All Offices" || o.office === selectedOffice).map(o => (
           <div key={o.office} className="mb-4" style={{ pageBreakInside: "avoid" }}>
-            <p className="font-bold text-xs mb-1">{o.office} ({o.total} items total)</p>
+            <p className="font-bold text-xs mb-1 bg-gray-100 p-1">{o.office} ({o.total} items total)</p>
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="border-b border-black">

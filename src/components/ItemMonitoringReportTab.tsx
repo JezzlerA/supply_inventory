@@ -13,6 +13,7 @@ interface UserProfile {
   id: string;
   full_name: string;
   email: string | null;
+  office_location: string | null;
 }
 
 interface AssignedItem {
@@ -67,12 +68,15 @@ const ItemMonitoringReportTab = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [offices, setOffices] = useState<string[]>([]);
+  const [selectedOfficeFilter, setSelectedOfficeFilter] = useState<string>("All Offices");
   const [reportItems, setReportItems] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchUsers();
+    fetchOffices();
   }, []);
 
   useEffect(() => {
@@ -80,8 +84,13 @@ const ItemMonitoringReportTab = () => {
   }, [selectedUser]);
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from("profiles").select("id, full_name, email");
+    const { data } = await supabase.from("profiles").select("id, full_name, email, office_location");
     if (data) setUsers(data);
+  };
+
+  const fetchOffices = async () => {
+    const { data } = await supabase.from("offices").select("office_name").order("office_name");
+    if (data) setOffices(data.map(o => o.office_name));
   };
 
   const fetchUserReport = async (userId: string) => {
@@ -140,39 +149,56 @@ const ItemMonitoringReportTab = () => {
 
   const handlePrint = () => window.print();
 
-  const filteredUsers = users.filter(u =>
-    u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.email || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (u.email || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesOffice = selectedOfficeFilter === "All Offices" || u.office_location === selectedOfficeFilter;
+    return matchesSearch && matchesOffice;
+  });
 
   return (
     <div>
       <div className="print:hidden">
         {!selectedUser ? (
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" /> Select a User
               </CardTitle>
-              <div className="relative mt-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <select 
+                  className="h-9 px-3 rounded-md border text-sm w-full sm:w-48 bg-background"
+                  value={selectedOfficeFilter}
+                  onChange={(e) => setSelectedOfficeFilter(e.target.value)}
+                >
+                  <option value="All Offices">All Offices</option>
+                  {offices.map(o => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
               </div>
             </CardHeader>
-            <CardContent className="space-y-1">
+            <CardContent className="space-y-1 pt-3">
               {filteredUsers.map(u => (
                 <button
                   key={u.id}
                   onClick={() => { setSelectedUser(u); setSearchQuery(""); }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg transition-colors text-sm hover:bg-muted"
+                  className="w-full text-left px-3 py-2.5 rounded-lg transition-colors text-sm hover:bg-muted border border-transparent hover:border-border"
                 >
-                  <div className="font-medium">{u.full_name}</div>
-                  <div className="text-xs text-muted-foreground">{u.email}</div>
+                  <div className="font-medium flex justify-between items-center">
+                    {u.full_name}
+                    <Badge variant="secondary" className="text-[10px]">{u.office_location || "Unassigned"}</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{u.email}</div>
                 </button>
               ))}
               {filteredUsers.length === 0 && (
@@ -188,9 +214,12 @@ const ItemMonitoringReportTab = () => {
                   <Button variant="ghost" size="icon" onClick={() => { setSelectedUser(null); setReportItems([]); }}>
                     <ArrowLeft className="w-4 h-4" />
                   </Button>
-                  <CardTitle className="text-base">
-                    Transaction Report — {selectedUser.full_name}
-                  </CardTitle>
+                  <div>
+                    <CardTitle className="text-base">
+                      Transaction Report — {selectedUser.full_name}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">{selectedUser.office_location || "Unassigned Office"}</p>
+                  </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
                   <Printer className="w-4 h-4" /> Print Report

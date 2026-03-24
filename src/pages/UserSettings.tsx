@@ -152,6 +152,15 @@ const UserSettings = () => {
                 <Label>Contact Number</Label>
                 <Input value={contactNumber} onChange={e => setContactNumber(e.target.value)} placeholder="Enter your contact number" />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Assigned Office</Label>
+                <Input 
+                  value={(profile as any)?.office_location || "Unassigned Office"} 
+                  disabled 
+                  className="bg-muted text-muted-foreground font-medium cursor-not-allowed" 
+                />
+                <p className="text-xs text-muted-foreground mt-1">Contact your administrator if you need to change your office assignment.</p>
+              </div>
             </div>
           </CardContent>
         </Card>

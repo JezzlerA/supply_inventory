@@ -221,6 +221,14 @@ const Settings = () => {
                   {role || "user"}
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Assigned Office</Label>
+                <Input 
+                  value={(profile as any)?.office_location || "Supply Office"} 
+                  disabled 
+                  className="bg-muted text-muted-foreground font-medium cursor-not-allowed" 
+                />
+              </div>
               <div className="pt-2">
                 <Button onClick={handleSaveProfile} disabled={savingProfile} className="gap-2">
                   {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

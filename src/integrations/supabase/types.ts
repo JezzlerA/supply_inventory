@@ -364,6 +364,66 @@ export type Database = {
           },
         ]
       }
+      office_logs: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          id: string
+          new_office: string | null
+          old_office: string | null
+          user_id: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_office?: string | null
+          old_office?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_office?: string | null
+          old_office?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_logs_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      offices: {
+        Row: {
+          created_at: string
+          id: string
+          office_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          office_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          office_name?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -405,6 +465,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          office_location: string | null
           status: string
         }
         Insert: {
@@ -414,6 +475,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id: string
+          office_location?: string | null
           status?: string
         }
         Update: {
@@ -423,6 +485,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          office_location?: string | null
           status?: string
         }
         Relationships: []

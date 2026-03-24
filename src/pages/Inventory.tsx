@@ -18,7 +18,7 @@ const Inventory = () => {
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
 
   // Request dialog
   const [requestOpen, setRequestOpen] = useState(false);
@@ -63,6 +63,17 @@ const Inventory = () => {
 
   // Handle request button click - check stock first
   const handleRequestClick = (item: any) => {
+    // Check user office assignment
+    const officeLocation = (profile as any)?.office_location;
+    if (!officeLocation || officeLocation === "Unassigned Office") {
+      toast({ 
+        title: "Action required", 
+        description: "Please contact admin to assign your office before making a request.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     if (item.stock_quantity === 0) {
       setRequestItem(item);
       setOutOfStockOpen(true);
@@ -78,6 +89,13 @@ const Inventory = () => {
       return;
     }
     setRequestItem(item);
+    
+    // Auto-fill form
+    setRequestForm({ 
+      quantity: "", 
+      requesting_office: officeLocation, 
+      requested_by: profile?.full_name || "" 
+    });
     setRequestOpen(true);
   };
 
@@ -271,10 +289,11 @@ const Inventory = () => {
             <div><Label>Quantity *</Label><Input type="number" min="1" max={requestItem?.stock_quantity} value={requestForm.quantity} onChange={e => setRequestForm(p => ({ ...p, quantity: e.target.value }))} required /></div>
             <div>
               <Label>Requesting Office *</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={requestForm.requesting_office} onChange={e => setRequestForm(p => ({ ...p, requesting_office: e.target.value }))} required>
-                <option value="">Select office</option>
-                {offices.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <Input 
+                value={(profile as any)?.office_location || ""} 
+                disabled 
+                className="bg-muted text-muted-foreground font-medium cursor-not-allowed" 
+              />
             </div>
             <div><Label>Requested By *</Label><Input value={requestForm.requested_by} onChange={e => setRequestForm(p => ({ ...p, requested_by: e.target.value }))} required /></div>
             <Button type="submit" className="w-full"><Send className="w-4 h-4 mr-2" /> Submit Request</Button>

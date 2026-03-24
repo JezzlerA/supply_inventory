@@ -5,7 +5,7 @@ import type { User, Session } from "@supabase/supabase-js";
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: { full_name: string; email: string; avatar_url: string | null } | null;
+  profile: { full_name: string; email: string; avatar_url: string | null; office_location?: string | null } | null;
   role: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -18,13 +18,13 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<{ full_name: string; email: string; avatar_url: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ full_name: string; email: string; avatar_url: string | null; office_location?: string | null } | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
     const [profileRes, roleRes] = await Promise.all([
-      supabase.from("profiles").select("full_name, email, avatar_url").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("full_name, email, avatar_url, office_location").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     ]);
     if (profileRes.data) setProfile(profileRes.data);
