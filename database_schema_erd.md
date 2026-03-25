@@ -2,7 +2,8 @@
 
 This diagram visualizes the primary tables and their relationships within the supply inventory system based on your Supabase schema.
 
-```erDiagram
+```mermaid
+erDiagram
     categories ||--o{ inventory_items : has
     categories ||--o{ receiving_records : categorizes
     
