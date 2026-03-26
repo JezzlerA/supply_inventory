@@ -58,7 +58,7 @@ const benefits = [
 
 const LandingPage = () => {
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 flex flex-col"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -100,7 +100,7 @@ const LandingPage = () => {
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 sm:pt-40 lg:pt-56 pb-16 sm:pb-24 relative z-10">
           <div className="max-w-3xl mx-auto text-center text-white">
-            <motion.h1 
+            <motion.h1
               className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight mb-6"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -113,25 +113,25 @@ const LandingPage = () => {
               </span>{" "}
               Operations
             </motion.h1>
-            <motion.p 
+            <motion.p
               className="text-lg sm:text-xl text-slate-100/90 leading-relaxed mb-8 max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
             >
-              A comprehensive inventory management system designed for NORSU Bais Campus. 
+              A comprehensive inventory management system designed for NORSU Bais Campus.
               Track supplies, manage requests, and generate reports effortlessly.
             </motion.p>
-            <motion.div 
+            <motion.div
               className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
             >
-              <motion.div 
-                whileHover={{ scale: 1.05, y: -2 }} 
+              <motion.div
+                whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.98 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
@@ -152,9 +152,9 @@ const LandingPage = () => {
                 </a>
               </Button>
             </motion.div>
-            
+
             {/* Benefits list */}
-            <motion.div 
+            <motion.div
               className="flex flex-wrap justify-center gap-x-6 gap-y-2"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
@@ -176,7 +176,7 @@ const LandingPage = () => {
       <section id="features" className="py-20 sm:py-28 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-100/50 via-slate-100/80 to-slate-100/50" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <motion.div 
+          <motion.div
             className="text-center mb-16"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -247,8 +247,8 @@ const LandingPage = () => {
                 </span>
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-6">
-                The NORSU Supply Office Inventory Management System is designed to modernize 
-                how campus supplies are tracked, requested, and distributed. Say goodbye to 
+                The NORSU Supply Office Inventory Management System is designed to modernize
+                how campus supplies are tracked, requested, and distributed. Say goodbye to
                 manual paperwork and hello to real-time visibility.
               </p>
               <div className="space-y-4">
@@ -257,8 +257,8 @@ const LandingPage = () => {
                   { icon: Shield, text: "Secure role-based access for all users" },
                   { icon: CheckCircle2, text: "Automated notifications and alerts" },
                 ].map((item, idx) => (
-                  <motion.div 
-                    key={item.text} 
+                  <motion.div
+                    key={item.text}
                     className="flex items-center gap-3"
                     initial={{ opacity: 0, x: -20 }}
                     whileInView={{ opacity: 1, x: 0 }}
@@ -273,7 +273,7 @@ const LandingPage = () => {
                 ))}
               </div>
             </motion.div>
-            <motion.div 
+            <motion.div
               className="relative"
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
@@ -289,7 +289,7 @@ const LandingPage = () => {
                     NORSU Bais Campus
                   </h3>
                   <p className="text-white/70 mb-8 leading-relaxed">
-                    Serving the academic community with efficient supply management 
+                    Serving the academic community with efficient supply management
                     and transparent resource allocation.
                   </p>
                   <Button
@@ -311,7 +311,7 @@ const LandingPage = () => {
       {/* CTA */}
       <section className="py-16 sm:py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
+          <motion.div
             className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -320,7 +320,7 @@ const LandingPage = () => {
           >
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
             <div className="relative z-10">
-              <motion.div 
+              <motion.div
                 className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-yellow-400 mb-6 shadow-xl shadow-accent/30"
                 initial={{ scale: 0 }}
                 whileInView={{ scale: 1 }}
@@ -329,7 +329,7 @@ const LandingPage = () => {
               >
                 <Sparkles className="w-8 h-8 text-accent-foreground" />
               </motion.div>
-              <motion.h2 
+              <motion.h2
                 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -338,7 +338,7 @@ const LandingPage = () => {
               >
                 Ready to Get Started?
               </motion.h2>
-              <motion.p 
+              <motion.p
                 className="text-slate-400 mb-8 max-w-lg mx-auto text-lg"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -395,7 +395,7 @@ const LandingPage = () => {
           </div>
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Inventory Management System. Developed for NORSU Bais Campus.
+              © {new Date().getFullYear()} Inventory Management System. Developed for NORSU Bais Campus by Jezzler Abuyabor.
             </p>
           </div>
         </div>
