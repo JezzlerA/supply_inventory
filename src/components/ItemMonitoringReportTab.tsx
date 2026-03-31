@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Users, Printer, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import ItemMonitoringReport from "@/components/ItemMonitoringReport";
+import ReportFilterModal, { DateRangeFilter } from "./reports/ReportFilterModal";
 
 interface UserProfile {
   id: string;
@@ -42,6 +43,7 @@ interface ReportItem {
   condition_status: string;
   date: string;
   status: string;
+  original_date: string;
 }
 
 const possessionColor = (status: string) => {
@@ -73,6 +75,8 @@ const ItemMonitoringReportTab = () => {
   const [reportItems, setReportItems] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateRangeFilter | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -121,6 +125,7 @@ const ItemMonitoringReportTab = () => {
         possession_status: item.possession_status,
         condition_status: item.condition_status,
         date: format(new Date(item.date_assigned), "MMM d, yyyy"),
+        original_date: item.date_assigned,
         status: item.possession_status === "With User" ? "Approved" : item.possession_status,
       });
     });
@@ -139,6 +144,7 @@ const ItemMonitoringReportTab = () => {
         possession_status: matchedAssigned?.possession_status || "—",
         condition_status: matchedAssigned?.condition_status || "—",
         date: format(new Date(tx.created_at), "MMM d, yyyy"),
+        original_date: tx.created_at,
         status: tx.status,
       });
     });
@@ -147,7 +153,25 @@ const ItemMonitoringReportTab = () => {
     setLoading(false);
   };
 
-  const handlePrint = () => window.print();
+  const isWithinDateRange = (dateStr: string) => {
+    if (!dateFilter || (!dateFilter.startDate && !dateFilter.endDate)) return true;
+    const date = new Date(dateStr);
+    if (dateFilter.startDate && dateFilter.endDate) {
+      return date >= dateFilter.startDate && date <= dateFilter.endDate;
+    }
+    return true;
+  };
+
+  const handlePrint = () => setIsModalOpen(true);
+
+  const applyFilterAndPrint = (filter: DateRangeFilter) => {
+    setDateFilter(filter);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const filteredReportItems = reportItems.filter(item => isWithinDateRange(item.original_date));
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -229,8 +253,8 @@ const ItemMonitoringReportTab = () => {
             <CardContent>
               {loading ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
-              ) : reportItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No transactions found for this user</p>
+              ) : filteredReportItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No transactions found for this user in the selected period</p>
               ) : (
                 <>
                   <div className="overflow-x-auto">
@@ -248,7 +272,7 @@ const ItemMonitoringReportTab = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {reportItems.map((item, i) => (
+                        {filteredReportItems.map((item, i) => (
                           <TableRow key={i}>
                             <TableCell>{i + 1}</TableCell>
                             <TableCell className="font-medium">{item.item_name}</TableCell>
@@ -272,7 +296,7 @@ const ItemMonitoringReportTab = () => {
                     </Table>
                   </div>
                   <div className="mt-4 text-sm font-semibold text-muted-foreground">
-                    Total Transactions: {reportItems.length}
+                    Total Transactions: {filteredReportItems.length}
                   </div>
                 </>
               )}
@@ -282,13 +306,20 @@ const ItemMonitoringReportTab = () => {
       </div>
 
       {/* Printable Report */}
-      {selectedUser && reportItems.length > 0 && (
+      {selectedUser && filteredReportItems.length > 0 && (
         <ItemMonitoringReport
           ref={reportRef}
           userName={selectedUser.full_name}
-          items={reportItems}
+          items={filteredReportItems}
+          dateLabel={dateFilter?.label !== "All Time" ? dateFilter?.label : undefined}
         />
       )}
+
+      <ReportFilterModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onApply={applyFilterAndPrint} 
+      />
     </div>
   );
 };

@@ -14,9 +14,10 @@ interface ReportItem {
 interface Props {
   userName: string;
   items: ReportItem[];
+  dateLabel?: string;
 }
 
-const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, items }, ref) => {
+const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, items, dateLabel }, ref) => {
   return (
     <div ref={ref} className="hidden print:block print-report p-8 font-serif text-black bg-white">
       <style>{`
@@ -97,7 +98,10 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
       </div>
 
       <div className="flex justify-between text-sm mb-4">
-        <div><strong>User:</strong> {userName}</div>
+        <div>
+          <div><strong>User:</strong> {userName}</div>
+          {dateLabel && <div><strong>Period Covered:</strong> {dateLabel}</div>}
+        </div>
         <div><strong>Date Generated:</strong> {format(new Date(), "MMMM d, yyyy")}</div>
       </div>
 

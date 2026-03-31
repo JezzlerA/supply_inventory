@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Printer } from "lucide-react";
 import { format } from "date-fns";
+import ReportFilterModal, { DateRangeFilter } from "./ReportFilterModal";
 
 interface ReportRow {
   article: string;
@@ -33,6 +34,9 @@ const PhysicalCountReport = () => {
   const [assignedItems, setAssignedItems] = useState<any[]>([]);
   const [receiving, setReceiving] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateRangeFilter | null>(null);
 
   // Editable header fields
   const [officeName, setOfficeName] = useState("CAS OFFICE & FACULTY OFFICE");
@@ -58,18 +62,34 @@ const PhysicalCountReport = () => {
     fetchData();
   }, []);
 
+  const isWithinDateRange = (dateStr: string) => {
+    if (!dateFilter || (!dateFilter.startDate && !dateFilter.endDate)) return true;
+    const date = new Date(dateStr);
+    if (dateFilter.startDate && dateFilter.endDate) {
+      return date >= dateFilter.startDate && date <= dateFilter.endDate;
+    }
+    return true;
+  };
+
+  const getFilteredReceiving = () => receiving.filter(r => isWithinDateRange(r.date_received || r.created_at));
+  const getFilteredDistributions = () => distributions.filter(d => isWithinDateRange(d.date_issued || d.created_at));
+  const getFilteredAssignedItems = () => assignedItems.filter(a => isWithinDateRange(a.date_assigned || a.created_at));
+
   const getReportRows = (): ReportRow[] => {
+    const filteredReceiving = getFilteredReceiving();
+    const filteredDistributions = getFilteredDistributions();
+    const filteredAssignedItems = getFilteredAssignedItems();
+
     return inventory.map((item) => {
-      const totalReceived = receiving
+      const totalReceived = filteredReceiving
         .filter((r) => r.inventory_item_id === item.id)
         .reduce((s, r) => s + r.quantity, 0);
 
-      const totalDistributed = distributions
+      const totalDistributed = filteredDistributions
         .filter((d) => d.inventory_item_id === item.id)
         .reduce((s, d) => s + d.quantity, 0);
 
-      // Physical count from assigned items that are "With User"
-      const physicalCount = assignedItems
+      const physicalCount = filteredAssignedItems
         .filter((a) => a.inventory_item_id === item.id && a.possession_status === "With User")
         .length;
 
@@ -77,8 +97,7 @@ const PhysicalCountReport = () => {
       const shortage = totalReceived - physicalCount - item.stock_quantity;
       const shortageQty = shortage > 0 ? shortage : 0;
 
-      // Get remarks from assigned items condition
-      const assignedForItem = assignedItems.filter((a) => a.inventory_item_id === item.id);
+      const assignedForItem = filteredAssignedItems.filter((a) => a.inventory_item_id === item.id);
       const conditions = [...new Set(assignedForItem.map((a) => a.condition_status))];
       const locations = [...new Set(assignedForItem.map((a) => a.current_location).filter(Boolean))];
       const remarks = [...conditions, ...locations].filter(Boolean).join(", ") || "Functional";
@@ -100,7 +119,8 @@ const PhysicalCountReport = () => {
 
   const getDistributionByOffice = (): OfficeDistribution[] => {
     const byOffice: Record<string, OfficeDistribution> = {};
-    distributions.forEach((d) => {
+    const filteredDistributions = getFilteredDistributions();
+    filteredDistributions.forEach((d) => {
       if (!byOffice[d.receiving_office]) {
         byOffice[d.receiving_office] = { office: d.receiving_office, items: {}, total: 0 };
       }
@@ -111,9 +131,16 @@ const PhysicalCountReport = () => {
     return Object.values(byOffice);
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => setIsModalOpen(true);
 
-  const reportRows = getReportRows();
+  const applyFilterAndPrint = (filter: DateRangeFilter) => {
+    setDateFilter(filter);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const reportRows = getReportRows().filter(r => dateFilter ? (r.qtyPhysicalCount > 0 || r.qtyPropertyCard > 0 || r.shortageQty > 0) : true);
   const officeData = getDistributionByOffice();
 
   return (
@@ -344,6 +371,9 @@ const PhysicalCountReport = () => {
         </div>
 
         <div style={{ marginBottom: "12px", fontSize: "10pt" }}>
+          {dateFilter && dateFilter.label !== "All Time" && (
+            <p style={{ margin: "2px 0", fontWeight: "bold" }}>Period Covered: {dateFilter.label}</p>
+          )}
           <p style={{ margin: "2px 0" }}><strong>Fund Cluster: {fundCluster}</strong></p>
           {accountablePerson && (
             <p style={{ margin: "6px 0" }}>
@@ -479,6 +509,12 @@ const PhysicalCountReport = () => {
           </table>
         </div>
       </div>
+      {/* Modal */}
+      <ReportFilterModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onApply={applyFilterAndPrint} 
+      />
     </div>
   );
 };

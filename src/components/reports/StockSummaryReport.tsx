@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Printer } from "lucide-react";
 import { format } from "date-fns";
+import ReportFilterModal, { DateRangeFilter } from "./ReportFilterModal";
 
 const StockSummaryReport = () => {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -12,6 +13,9 @@ const StockSummaryReport = () => {
   const [receiving, setReceiving] = useState<any[]>([]);
   const [offices, setOffices] = useState<string[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<string>("All Offices");
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateRangeFilter | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -30,18 +34,39 @@ const StockSummaryReport = () => {
     fetchData();
   }, []);
 
+  const isWithinDateRange = (dateStr: string) => {
+    if (!dateFilter || (!dateFilter.startDate && !dateFilter.endDate)) return true;
+    const date = new Date(dateStr);
+    if (dateFilter.startDate && dateFilter.endDate) {
+      return date >= dateFilter.startDate && date <= dateFilter.endDate;
+    }
+    return true;
+  };
+
+  const getFilteredDistributions = () => {
+    return distributions.filter((d) => isWithinDateRange(d.date_issued || d.created_at));
+  };
+
+  const getFilteredReceiving = () => {
+    return receiving.filter((r) => isWithinDateRange(r.date_received || r.created_at));
+  };
+
   const getStockSummary = () => {
+    const filteredReceiving = getFilteredReceiving();
+    const filteredDistributions = getFilteredDistributions();
+    
     return inventory.map(item => {
-      const totalReceived = receiving.filter(r => r.inventory_item_id === item.id).reduce((s, r) => s + r.quantity, 0);
-      const totalDistributed = distributions.filter(d => d.inventory_item_id === item.id).reduce((s, d) => s + d.quantity, 0);
+      const totalReceived = filteredReceiving.filter(r => r.inventory_item_id === item.id).reduce((s, r) => s + r.quantity, 0);
+      const totalDistributed = filteredDistributions.filter(d => d.inventory_item_id === item.id).reduce((s, d) => s + d.quantity, 0);
       const remaining = item.stock_quantity;
       return { ...item, totalReceived, totalDistributed, remaining };
-    });
+    }).filter(item => dateFilter ? (item.totalReceived > 0 || item.totalDistributed > 0) : true) || [];
   };
 
   const getDistributionByOffice = () => {
     const byOffice: Record<string, { office: string; items: Record<string, number>; total: number }> = {};
-    distributions.forEach(d => {
+    const filteredDistributions = getFilteredDistributions();
+    filteredDistributions.forEach(d => {
       if (!byOffice[d.receiving_office]) byOffice[d.receiving_office] = { office: d.receiving_office, items: {}, total: 0 };
       byOffice[d.receiving_office].items[d.item_name] = (byOffice[d.receiving_office].items[d.item_name] || 0) + d.quantity;
       byOffice[d.receiving_office].total += d.quantity;
@@ -49,7 +74,14 @@ const StockSummaryReport = () => {
     return Object.values(byOffice);
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => setIsModalOpen(true);
+
+  const applyFilterAndPrint = (filter: DateRangeFilter) => {
+    setDateFilter(filter);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
 
   const summary = getStockSummary();
   const officeData = getDistributionByOffice();
@@ -240,6 +272,9 @@ const StockSummaryReport = () => {
           <div className="flex-1 text-left">
             <h1 className="text-lg font-bold uppercase tracking-wide">Inventory Management System</h1>
             <h2 className="text-base font-semibold mt-1">Stock Summary &amp; Distribution Office Report</h2>
+            {dateFilter && dateFilter.label !== "All Time" && (
+              <p className="text-sm mt-1 font-medium">Period Covered: {dateFilter.label}</p>
+            )}
             <p className="text-sm mt-1">Date Generated: {today}</p>
           </div>
         </div>
@@ -302,6 +337,12 @@ const StockSummaryReport = () => {
           </div>
         ))}
       </div>
+
+      <ReportFilterModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onApply={applyFilterAndPrint} 
+      />
     </div>
   );
 };
