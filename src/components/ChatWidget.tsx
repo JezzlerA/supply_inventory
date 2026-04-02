@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageCircle, X, Send, ArrowLeft, User, Megaphone, Users, Circle } from "lucide-react";
+import { MessageCircle, X, Send, ArrowLeft, User, Megaphone, Users, Circle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +23,7 @@ interface ChatUser {
   full_name: string;
   email: string;
   avatar_url: string | null;
+  role?: string;
   is_online?: boolean;
 }
 
@@ -36,15 +37,17 @@ const ChatWidget = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [users, setUsers] = useState<ChatUser[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [adminTab, setAdminTab] = useState<"chats" | "broadcast">("chats");
+  const [activeTab, setActiveTab] = useState<"chats" | "broadcast">("chats");
   const [broadcastMessages, setBroadcastMessages] = useState<ChatMessage[]>([]);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({});
   const [isTyping, setIsTyping] = useState(false);
-  const [adminOnline, setAdminOnline] = useState(false);
+  
+  // Since everyone acts the same, we just track userProfiles and online presence generically.
   const [userProfiles, setUserProfiles] = useState<Record<string, ChatUser>>({});
-  const [adminProfile, setAdminProfile] = useState<ChatUser | null>(null);
+  
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const lastMessageTimestampRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -59,32 +62,14 @@ const ChatWidget = () => {
   const fetchMessages = async () => {
     if (!user) return;
 
-    if (isAdmin && selectedUser) {
+    if (selectedUser) {
       const { data } = await supabase
         .from("chat_messages")
         .select("*")
-        .or(`sender_id.eq.${selectedUser},receiver_id.eq.${selectedUser}`)
         .eq("is_broadcast", false)
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${selectedUser}),and(sender_id.eq.${selectedUser},receiver_id.eq.${user.id})`)
         .order("created_at", { ascending: true });
       setMessages(data || []);
-    } else if (!isAdmin) {
-      const { data: dms } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("is_broadcast", false)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order("created_at", { ascending: true });
-
-      const { data: broadcasts } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("is_broadcast", true)
-        .order("created_at", { ascending: true });
-
-      const all = [...(dms || []), ...(broadcasts || [])].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-      setMessages(all);
     }
   };
 
@@ -99,69 +84,47 @@ const ChatWidget = () => {
 
   const fetchUnread = async () => {
     if (!user) return;
-    if (isAdmin) {
-      const { count } = await supabase
-        .from("chat_messages")
-        .select("*", { count: "exact", head: true })
-        .eq("is_admin_message", false)
-        .eq("is_broadcast", false)
-        .eq("read", false);
-      setUnreadCount(count || 0);
-    } else {
-      const { count } = await supabase
-        .from("chat_messages")
-        .select("*", { count: "exact", head: true })
-        .eq("receiver_id", user.id)
-        .eq("read", false);
-      setUnreadCount(count || 0);
-    }
+    const { count } = await supabase
+      .from("chat_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("receiver_id", user.id)
+      .eq("read", false);
+    setUnreadCount(count || 0);
   };
 
   const fetchUsers = async () => {
-    if (!isAdmin) return;
-    const { data } = await supabase
-      .from("chat_messages")
-      .select("sender_id")
-      .eq("is_admin_message", false)
-      .eq("is_broadcast", false);
+    if (!user) return;
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url");
+      
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("user_id, role");
+      
+    // Create a generic map of role user_id -> role
+    const roleMap = new Map((roles || []).map(r => [r.user_id, r.role]));
 
-    const uniqueIds = [...new Set((data || []).map(d => d.sender_id))];
-    if (uniqueIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, avatar_url")
-        .in("id", uniqueIds);
+    if (profiles) {
+      // Filter out self
+      const otherUsers = profiles.filter(p => p.id !== user.id).map(p => ({
+        ...p,
+        role: roleMap.get(p.id) || "user"
+      }));
       
       const profileMap: Record<string, ChatUser> = {};
-      (profiles || []).forEach(p => {
+      otherUsers.forEach(p => {
         profileMap[p.id] = { ...p, is_online: false };
       });
       setUserProfiles(profileMap);
-      setUsers(profiles || []);
-    }
-  };
-
-  const fetchAdminProfile = async () => {
-    if (isAdmin) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, avatar_url")
-      .eq("id", "00000000-0000-0000-0000-000000000001")
-      .maybeSingle();
-    
-    if (data) {
-      setAdminProfile({ ...data, is_online: false });
+      setUsers(otherUsers);
     }
   };
 
   useEffect(() => {
     fetchUnread();
-    if (isAdmin) {
-      fetchUsers();
-      fetchBroadcasts();
-    } else {
-      fetchAdminProfile();
-    }
+    fetchUsers();
+    fetchBroadcasts();
 
     const channel = supabase
       .channel("chat-realtime")
@@ -171,18 +134,11 @@ const ChatWidget = () => {
           lastMessageTimestampRef.current = newTimestamp;
           fetchMessages();
           fetchUnread();
-          if (isAdmin) {
-            fetchUsers();
-            fetchBroadcasts();
-          }
+          fetchBroadcasts();
         }
       })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setRealtimeConnected(true);
-        } else {
-          setRealtimeConnected(false);
-        }
+        setRealtimeConnected(status === "SUBSCRIBED");
       });
 
     if (!pollingIntervalRef.current) {
@@ -190,10 +146,7 @@ const ChatWidget = () => {
         if (!realtimeConnected) {
           fetchMessages();
           fetchUnread();
-          if (isAdmin) {
-            fetchUsers();
-            fetchBroadcasts();
-          }
+          fetchBroadcasts();
         }
       }, 3000);
     }
@@ -205,29 +158,20 @@ const ChatWidget = () => {
         pollingIntervalRef.current = null;
       }
     };
-  }, [user, role, realtimeConnected, lastMessageTimestampRef.current]);
+  }, [user, role, realtimeConnected, lastMessageTimestampRef.current, selectedUser]); // Ensure selectedUser refreshes correctly
 
   useEffect(() => {
     if (open) {
       fetchMessages();
-      if (isAdmin) fetchBroadcasts();
-      if (user) {
-        if (isAdmin && selectedUser) {
-          supabase
-            .from("chat_messages")
-            .update({ read: true })
-            .eq("sender_id", selectedUser)
-            .eq("is_admin_message", false)
-            .eq("read", false)
-            .then(() => fetchUnread());
-        } else if (!isAdmin) {
-          supabase
-            .from("chat_messages")
-            .update({ read: true })
-            .eq("receiver_id", user.id)
-            .eq("read", false)
-            .then(() => fetchUnread());
-        }
+      fetchBroadcasts();
+      if (user && selectedUser) {
+        supabase
+          .from("chat_messages")
+          .update({ read: true })
+          .eq("sender_id", selectedUser)
+          .eq("receiver_id", user.id)
+          .eq("read", false)
+          .then(() => fetchUnread());
       }
     }
   }, [open, selectedUser]);
@@ -241,6 +185,8 @@ const ChatWidget = () => {
   }, [broadcastMessages]);
 
   useEffect(() => {
+    if (!user) return;
+    
     const typingChannel = supabase
       .channel("typing-status")
       .on("broadcast", { event: "typing" }, ({ payload }) => {
@@ -249,14 +195,12 @@ const ChatWidget = () => {
         }
       })
       .on("broadcast", { event: "presence" }, ({ payload }) => {
-        if (isAdmin) {
-          const userId = payload.userId;
-          setUserProfiles(prev => ({
-            ...prev,
-            [userId]: { ...prev[userId], is_online: payload.isOnline }
-          }));
-        } else {
-          setAdminOnline(payload.isOnline);
+        const userId = payload.userId;
+        if (userId !== user?.id) {
+           setUserProfiles(prev => ({
+             ...prev,
+             [userId]: { ...prev[userId], is_online: payload.isOnline }
+           }));
         }
       })
       .subscribe();
@@ -266,26 +210,31 @@ const ChatWidget = () => {
     return () => {
       supabase.removeChannel(typingChannel);
     };
-  }, [user, isAdmin]);
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     const presenceChannel = supabase.channel("online-presence");
     
     presenceChannel
       .on("presence", { event: "sync" }, () => {
         const state = presenceChannel.presenceState();
-        if (!isAdmin && state["admin"]) {
-          setAdminOnline(state["admin"].length > 0);
-        }
+        setUserProfiles(prev => {
+          const next = { ...prev };
+          Object.keys(next).forEach(uid => {
+            next[uid].is_online = !!state[uid];
+          });
+          return next;
+        });
       })
       .subscribe(async () => {
-        await presenceChannel.track({ userId: user?.id, isAdmin });
+        await presenceChannel.track({ userId: user?.id, isOnline: true });
       });
 
     return () => {
       supabase.removeChannel(presenceChannel);
     };
-  }, [user, isAdmin]);
+  }, [user]);
 
   const handleTyping = useCallback((value: string) => {
     setInput(value);
@@ -316,8 +265,7 @@ const ChatWidget = () => {
   }, [isTyping, user?.id]);
 
   const handleSend = async () => {
-    if (!input.trim() || !user) return;
-    const receiverId = isAdmin ? selectedUser : null;
+    if (!input.trim() || !user || !selectedUser) return;
 
     if (isTyping) {
       setIsTyping(false);
@@ -330,7 +278,7 @@ const ChatWidget = () => {
 
     await supabase.from("chat_messages").insert({
       sender_id: user.id,
-      receiver_id: receiverId,
+      receiver_id: selectedUser,
       message: input.trim(),
       is_admin_message: isAdmin,
       is_broadcast: false,
@@ -387,7 +335,7 @@ const ChatWidget = () => {
 
     return (
       <div className={`${sizeClasses[size]} rounded-full bg-primary/10 text-primary flex items-center justify-center`}>
-        <span className="font-semibold">{name.charAt(0).toUpperCase()}</span>
+        <span className="font-semibold">{name ? name.charAt(0).toUpperCase() : "U"}</span>
       </div>
     );
   };
@@ -410,7 +358,7 @@ const ChatWidget = () => {
             <>
               <Megaphone className="w-12 h-12 mb-3 opacity-20" />
               <p className="text-sm font-medium">No announcements yet</p>
-              <p className="text-xs mt-1">Broadcast a message to all users</p>
+              {isAdmin && <p className="text-xs mt-1">Broadcast a message to all users</p>}
             </>
           ) : (
             <>
@@ -424,7 +372,7 @@ const ChatWidget = () => {
     }
 
     const showTypingIndicator = (userId: string) => {
-      const isOtherTyping = isAdmin ? typingStatus[userId] : typingStatus["admin"] || typingStatus["00000000-0000-0000-0000-000000000001"];
+      const isOtherTyping = typingStatus[userId];
       if (!isOtherTyping) return null;
       
       return (
@@ -435,7 +383,7 @@ const ChatWidget = () => {
             <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
           </div>
           <span className="text-xs text-muted-foreground ml-1">
-            {isAdmin ? "User" : "Admin"} is typing...
+            {userProfiles[userId]?.full_name || "User"} is typing...
           </span>
         </div>
       );
@@ -455,19 +403,11 @@ const ChatWidget = () => {
               const showAvatar = idx === 0 || dateMsgs[idx - 1]?.sender_id !== m.sender_id;
               const isLastInGroup = idx === dateMsgs.length - 1 || dateMsgs[idx + 1]?.sender_id !== m.sender_id;
 
-              let avatarUrl: string | null = null;
-              let senderName = "";
+              let avatarUrl = m.sender_id === user?.id ? (userProfile?.avatar_url || null) : (userProfiles[m.sender_id]?.avatar_url || null);
+              let senderName = m.sender_id === user?.id ? (userProfile?.full_name || "You") : (userProfiles[m.sender_id]?.full_name || "User");
               
-              if (m.is_admin_message) {
-                avatarUrl = adminProfile?.avatar_url || userProfile?.avatar_url;
-                senderName = "Admin";
-              } else if (isAdmin) {
-                const profile = userProfiles[m.sender_id];
-                avatarUrl = profile?.avatar_url || null;
-                senderName = profile?.full_name || "User";
-              } else {
-                avatarUrl = userProfile?.avatar_url || null;
-                senderName = "Admin";
+              if (m.is_admin_message && m.is_broadcast) {
+                 senderName = "System Admin";
               }
 
               if (m.is_broadcast) {
@@ -476,7 +416,7 @@ const ChatWidget = () => {
                     <div className="max-w-[85%] px-4 py-2.5 rounded-2xl bg-accent/60 border border-accent text-foreground text-sm">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Megaphone className="w-3 h-3 text-primary" />
-                        <span className="text-[10px] font-semibold text-primary">Announcement</span>
+                        <span className="text-[10px] font-semibold text-primary">Announcement by {senderName}</span>
                       </div>
                       <p className="whitespace-pre-wrap break-words">{m.message}</p>
                       <div className="text-[9px] text-muted-foreground mt-1 text-right">
@@ -523,23 +463,32 @@ const ChatWidget = () => {
                     </div>
                     {isMine && (
                       <div className="w-10 flex-shrink-0 ml-1.5">
-                        {showAvatar && getAvatarComponent(userProfile?.avatar_url || null, userProfile?.full_name || "You", "sm")}
+                        {showAvatar && getAvatarComponent(avatarUrl, senderName, "sm")}
                       </div>
                     )}
                   </div>
-                  {isLastInGroup && !isMine && showTypingIndicator(m.sender_id)}
+                  {isLastInGroup && !isMine && selectedUser && showTypingIndicator(selectedUser)}
                 </div>
               );
             })}
           </div>
         ))}
-        {!isMine && showTypingIndicator(isAdmin ? selectedUser || "" : "admin")}
+        {!isMine && selectedUser && showTypingIndicator(selectedUser)}
         <div ref={ref} />
       </div>
     );
   };
 
   const isMine = false;
+  
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return users;
+    return users.filter(u => 
+      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.role?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [users, searchQuery]);
 
   return (
     <>
@@ -558,58 +507,53 @@ const ChatWidget = () => {
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-[90vw] max-w-[420px] h-[70vh] max-h-[600px] bg-card border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           <div className="px-4 py-3 bg-primary text-primary-foreground flex items-center gap-3">
-            {isAdmin && selectedUser && (
+            {selectedUser && (
               <button onClick={() => setSelectedUser(null)} className="hover:opacity-70 transition-opacity">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
             <div className="relative">
-              {isAdmin && adminTab === "broadcast" && !selectedUser ? (
+              {activeTab === "broadcast" && !selectedUser ? (
                 <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
                   <Megaphone className="w-5 h-5" />
                 </div>
-              ) : isAdmin && selectedUser ? (
+              ) : selectedUser ? (
                 getAvatarComponent(userProfiles[selectedUser]?.avatar_url || null, userProfiles[selectedUser]?.full_name || "U", "md")
               ) : (
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
-                    {adminProfile?.avatar_url ? (
-                      <img src={adminProfile.avatar_url} alt="Admin" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-5 h-5" />
-                    )}
-                  </div>
-                  <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-primary ${adminOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
+                  {userProfile?.avatar_url ? (
+                    <img src={userProfile.avatar_url} alt="You" className="w-full h-full object-cover" />
+                  ) : (
+                    <Users className="w-5 h-5" />
+                  )}
                 </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm truncate">
-                {isAdmin
-                  ? selectedUser
-                    ? selectedUserInfo?.full_name || "User"
-                    : adminTab === "broadcast"
-                      ? "Announcements"
-                      : "Chat Support"
-                  : "Chat with Admin"}
+                {selectedUser
+                  ? selectedUserInfo?.full_name || "User"
+                  : activeTab === "broadcast"
+                    ? "Announcements"
+                    : "Inbox"}
               </div>
-              {isAdmin && selectedUser && selectedUserInfo && (
+              {selectedUser && selectedUserInfo && (
                 <div className="text-[11px] opacity-70 truncate">{selectedUserInfo.email}</div>
               )}
-              {isAdmin && !selectedUser && adminTab === "broadcast" && (
-                <div className="text-[11px] opacity-70">Send to all users</div>
+              {!selectedUser && activeTab === "broadcast" && (
+                <div className="text-[11px] opacity-70">System Updates</div>
               )}
-              {!isAdmin && (
+              {!selectedUser && activeTab === "chats" && (
                 <div className="text-[11px] opacity-70">
-                  {adminOnline ? "Online" : "Usually replies instantly"}
+                  {userProfile?.full_name}
                 </div>
               )}
             </div>
           </div>
 
-          {isAdmin && !selectedUser && (
+          {!selectedUser && (
             <div className="border-b px-2 pt-2">
-              <Tabs value={adminTab} onValueChange={(v) => setAdminTab(v as "chats" | "broadcast")}>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "chats" | "broadcast")}>
                 <TabsList className="w-full grid grid-cols-2 h-9">
                   <TabsTrigger value="chats" className="text-xs gap-1.5">
                     <Users className="w-3.5 h-3.5" />
@@ -624,84 +568,103 @@ const ChatWidget = () => {
             </div>
           )}
 
-          {isAdmin && !selectedUser && adminTab === "chats" && (
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-3 text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Conversations
-              </div>
-              {users.length === 0 ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">
-                  <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>No conversations yet</p>
-                  <p className="text-xs mt-1">Messages from users will appear here</p>
+          {!selectedUser && activeTab === "chats" && (
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              <div className="p-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search users..." 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="pl-9 bg-muted/50 border-0 h-9"
+                  />
                 </div>
-              ) : (
-                users.map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => setSelectedUser(u.id)}
-                    className="w-full text-left px-4 py-3 hover:bg-muted/50 border-b transition-colors flex items-center gap-3"
-                  >
-                    <div className="relative flex-shrink-0">
-                      {u.avatar_url ? (
-                        <img 
-                          src={u.avatar_url} 
-                          alt={u.full_name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                          <span className="text-sm font-semibold">
-                            {(u.full_name || "U").charAt(0).toUpperCase()}
-                          </span>
+              </div>
+              <div className="px-3 pb-2 text-xs text-muted-foreground font-medium uppercase tracking-wider flex justify-between">
+                <span>Contacts</span>
+                <span>{filteredUsers.length}</span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p>No users found</p>
+                  </div>
+                ) : (
+                  filteredUsers.map(u => (
+                    <button
+                      key={u.id}
+                      onClick={() => setSelectedUser(u.id)}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/50 border-b transition-colors flex items-center gap-3"
+                    >
+                      <div className="relative flex-shrink-0">
+                        {u.avatar_url ? (
+                          <img 
+                            src={u.avatar_url} 
+                            alt={u.full_name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                            <span className="text-sm font-semibold">
+                              {(u.full_name || "U").charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        {userProfiles[u.id]?.is_online && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate flex justify-between items-center">
+                           {u.full_name || "Unknown User"}
+                           {u.role === "admin" && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2 uppercase">Admin</span>}
                         </div>
-                      )}
-                      {userProfiles[u.id]?.is_online && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{u.full_name || "Unknown User"}</div>
-                      <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                    </div>
-                  </button>
-                ))
-              )}
+                        <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
-          {isAdmin && !selectedUser && adminTab === "broadcast" && (
+          {!selectedUser && activeTab === "broadcast" && (
             <>
               <div className="flex-1 overflow-y-auto p-3 bg-muted/20">
                 {renderMessages(broadcastMessages, broadcastBottomRef, true)}
               </div>
-              <div className="p-3 border-t bg-card flex items-end gap-2">
-                <Input
-                  placeholder="Type an announcement..."
-                  value={input}
-                  onChange={e => handleTyping(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleBroadcast()}
-                  className="flex-1 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleBroadcast}
-                  disabled={!input.trim()}
-                  className="rounded-full w-9 h-9 flex-shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
+              {isAdmin && (
+                <div className="p-3 border-t bg-card flex items-end gap-2">
+                  <Input
+                    placeholder="Type an announcement..."
+                    value={input}
+                    onChange={e => handleTyping(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleBroadcast()}
+                    className="flex-1 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleBroadcast}
+                    disabled={!input.trim()}
+                    className="rounded-full w-9 h-9 flex-shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </>
           )}
 
-          {(!isAdmin || selectedUser) && (
+          {selectedUser && (
             <>
               <div className="flex-1 overflow-y-auto p-3 bg-muted/20">
                 {renderMessages(messages, bottomRef)}
               </div>
               <div className="p-3 border-t bg-card">
-                {((isAdmin && selectedUser && typingStatus[selectedUser]) || (!isAdmin && typingStatus["admin"] || typingStatus["00000000-0000-0000-0000-000000000001"])) && (
+                {typingStatus[selectedUser] && (
                   <div className="flex items-center gap-1 mb-2 px-1">
                     <span className="flex gap-1">
                       <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -709,7 +672,7 @@ const ChatWidget = () => {
                       <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {isAdmin && selectedUser ? "User is typing..." : "Admin is typing..."}
+                      {userProfiles[selectedUser]?.full_name || "User"} is typing...
                     </span>
                   </div>
                 )}
