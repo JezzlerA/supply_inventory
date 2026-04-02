@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ interface UserProfile {
   office_location?: string | null;
   created_at: string;
   role?: string;
+  avatar_url?: string | null;
 }
 
 const UserManagement = () => {
@@ -169,6 +171,7 @@ const UserManagement = () => {
               <Table>
                  <TableHeader>
                    <TableRow>
+                     <TableHead className="w-[80px]">Profile</TableHead>
                      <TableHead>Name</TableHead>
                      <TableHead>Email</TableHead>
                      <TableHead>Role</TableHead>
@@ -180,6 +183,14 @@ const UserManagement = () => {
                 <TableBody>
                   {filtered.map(u => (
                     <TableRow key={u.id}>
+                      <TableCell>
+                        <Avatar className="w-10 h-10 border shadow-sm">
+                          <AvatarImage src={u.avatar_url || undefined} alt={u.full_name || "User"} />
+                          <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                            {u.full_name ? u.full_name.charAt(0).toUpperCase() : "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TableCell>
                       <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
                       <TableCell>{u.email || "—"}</TableCell>
                       <TableCell>
@@ -209,7 +220,7 @@ const UserManagement = () => {
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
