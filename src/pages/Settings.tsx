@@ -193,10 +193,25 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="profile" className="gap-2"><User className="w-4 h-4" /> Profile</TabsTrigger>
-          <TabsTrigger value="security" className="gap-2"><Lock className="w-4 h-4" /> Security</TabsTrigger>
-          <TabsTrigger value="users" className="gap-2"><Users className="w-4 h-4" /> User Management</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 h-auto gap-4 p-1 bg-transparent">
+          <TabsTrigger 
+            value="profile" 
+            className="gap-2 py-3 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:scale-105 data-[state=active]:shadow-lg transition-all duration-300 ease-in-out"
+          >
+            <User className="w-5 h-5" /> Profile
+          </TabsTrigger>
+          <TabsTrigger 
+            value="security" 
+            className="gap-2 py-3 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:scale-105 data-[state=active]:shadow-lg transition-all duration-300 ease-in-out"
+          >
+            <Lock className="w-5 h-5" /> Security
+          </TabsTrigger>
+          <TabsTrigger 
+            value="users" 
+            className="gap-2 py-3 rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:scale-105 data-[state=active]:shadow-lg transition-all duration-300 ease-in-out"
+          >
+            <Users className="w-5 h-5" /> User Management
+          </TabsTrigger>
         </TabsList>
 
         {/* Profile Tab */}
