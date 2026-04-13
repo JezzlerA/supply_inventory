@@ -395,7 +395,7 @@ const LandingPage = () => {
           </div>
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Inventory Management System. Developed for NORSU Bais Campus by Jezzler Abuyabor.
+              © {new Date().getFullYear()} Inventory Management System. Developed for NORSU Bais Campus by RVAM Group.
             </p>
           </div>
         </div>
