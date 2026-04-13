@@ -77,44 +77,77 @@ const PhysicalCountReport = () => {
 
   const getReportRows = (): ReportRow[] => {
     const filteredReceiving = getFilteredReceiving();
-    const filteredDistributions = getFilteredDistributions();
     const filteredAssignedItems = getFilteredAssignedItems();
 
-    return inventory.map((item) => {
+    const allRows: ReportRow[] = [];
+
+    inventory.forEach((item) => {
+      // Total expectation from Property Card perspective
       const totalReceived = filteredReceiving
         .filter((r) => r.inventory_item_id === item.id)
         .reduce((s, r) => s + r.quantity, 0);
 
-      const totalDistributed = filteredDistributions
-        .filter((d) => d.inventory_item_id === item.id)
-        .reduce((s, d) => s + d.quantity, 0);
+      const assignedForItem = filteredAssignedItems.filter(
+        (a) => a.inventory_item_id === item.id && a.possession_status === "With User"
+      );
 
-      const physicalCount = filteredAssignedItems
-        .filter((a) => a.inventory_item_id === item.id && a.possession_status === "With User")
-        .length;
+      // Group assigned items by condition
+      const conditionGroups: Record<string, { qty: number; locations: Set<string> }> = {};
+      assignedForItem.forEach((a) => {
+        const cond = a.condition_status || "Functional";
+        if (!conditionGroups[cond]) conditionGroups[cond] = { qty: 0, locations: new Set() };
+        conditionGroups[cond].qty++;
+        if (a.current_location) conditionGroups[cond].locations.add(a.current_location);
+      });
 
-      const qtyPropertyCard = item.unit_cost || 0;
-      const shortage = totalReceived - physicalCount - item.stock_quantity;
+      const stockQty = item.stock_quantity || 0;
+      const physicalCountTotal = assignedForItem.length;
+      const totalFound = physicalCountTotal + stockQty;
+      const shortage = totalReceived - totalFound;
       const shortageQty = shortage > 0 ? shortage : 0;
 
-      const assignedForItem = filteredAssignedItems.filter((a) => a.inventory_item_id === item.id);
-      const conditions = [...new Set(assignedForItem.map((a) => a.condition_status))];
-      const locations = [...new Set(assignedForItem.map((a) => a.current_location).filter(Boolean))];
-      const remarks = [...conditions, ...locations].filter(Boolean).join(", ") || "Functional";
+      let isFirstRowForArticle = true;
 
-      return {
-        article: item.item_name,
-        description: `${item.description || ""}${item.serial_number ? ` / ${item.serial_number}` : ""}`.trim() || "—",
-        propertyNumber: item.serial_number || "—",
-        unitOfMeasure: item.unit_of_measure?.toUpperCase() || "UNIT",
-        unitValue: item.unit_cost || 0,
-        qtyPropertyCard: item.stock_quantity || 0,
-        qtyPhysicalCount: physicalCount || totalDistributed,
-        shortageQty: shortageQty,
-        shortageValue: shortageQty * (item.unit_cost || 0),
-        remarks,
-      };
+      // 1. Row for In-Stock items
+      if (stockQty > 0 || (stockQty === 0 && assignedForItem.length === 0 && shortageQty === 0)) {
+        allRows.push({
+          article: item.item_name,
+          description: `${item.description || ""}${item.serial_number ? ` / ${item.serial_number}` : ""}`.trim() || "—",
+          propertyNumber: item.serial_number || "—",
+          unitOfMeasure: item.unit_of_measure?.toUpperCase() || "UNIT",
+          unitValue: item.unit_cost || 0,
+          qtyPropertyCard: totalReceived, // Show total expected on the primary row
+          qtyPhysicalCount: stockQty,
+          shortageQty: 0,
+          shortageValue: 0,
+          remarks: "In Stock / Functional",
+        });
+        isFirstRowForArticle = false;
+      }
+
+      // 2. Rows for Assigned items (split by condition)
+      Object.entries(conditionGroups).forEach(([condition, data]) => {
+        allRows.push({
+          article: isFirstRowForArticle ? item.item_name : "",
+          description: isFirstRowForArticle 
+            ? `${item.description || ""}${item.serial_number ? ` / ${item.serial_number}` : ""}`.trim() || "—"
+            : "",
+          propertyNumber: isFirstRowForArticle ? item.serial_number || "—" : "",
+          unitOfMeasure: isFirstRowForArticle ? item.unit_of_measure?.toUpperCase() || "UNIT" : "",
+          unitValue: isFirstRowForArticle ? item.unit_cost || 0 : 0,
+          qtyPropertyCard: isFirstRowForArticle ? totalReceived : 0,
+          qtyPhysicalCount: data.qty,
+          shortageQty: 0,
+          shortageValue: 0,
+          remarks: `${condition}${data.locations.size > 0 ? ` (${Array.from(data.locations).join(", ")})` : ""}`,
+        });
+        isFirstRowForArticle = false;
+      });
+
+
     });
+
+    return allRows;
   };
 
   const getDistributionByOffice = (): OfficeDistribution[] => {
@@ -227,13 +260,15 @@ const PhysicalCountReport = () => {
                     {reportRows.map((row, i) => (
                       <TableRow key={i}>
                         <TableCell className="font-medium">{row.article}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate">{row.description}</TableCell>
-                        <TableCell>{row.propertyNumber}</TableCell>
-                        <TableCell>{row.unitOfMeasure}</TableCell>
-                        <TableCell className="text-right">{row.unitValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-center">{row.qtyPropertyCard}</TableCell>
-                        <TableCell className="text-center">{row.qtyPhysicalCount}</TableCell>
-                        <TableCell className="text-center">{row.shortageQty}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate">{row.article ? row.description : ""}</TableCell>
+                        <TableCell>{row.article ? row.propertyNumber : ""}</TableCell>
+                        <TableCell>{row.article ? row.unitOfMeasure : ""}</TableCell>
+                        <TableCell className="text-right">
+                          {row.article ? row.unitValue.toLocaleString("en-US", { minimumFractionDigits: 2 }) : ""}
+                        </TableCell>
+                        <TableCell className="text-center">{row.qtyPropertyCard || ""}</TableCell>
+                        <TableCell className="text-center">{row.qtyPhysicalCount || "0"}</TableCell>
+                        <TableCell className="text-center">{row.shortageQty || ""}</TableCell>
                         <TableCell>{row.remarks}</TableCell>
                       </TableRow>
                     ))}
@@ -442,18 +477,18 @@ const PhysicalCountReport = () => {
             {reportRows.map((row, i) => (
               <tr key={i}>
                 <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{row.article}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px", fontSize: "8pt" }}>{row.description}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{row.propertyNumber}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.unitOfMeasure}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px", fontSize: "8pt" }}>{row.article ? row.description : ""}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{row.article ? row.propertyNumber : ""}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.article ? row.unitOfMeasure : ""}</td>
                 <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "right" }}>
-                  {row.unitValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {row.article ? row.unitValue.toLocaleString("en-US", { minimumFractionDigits: 2 }) : ""}
                 </td>
                 <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>
-                  {row.qtyPropertyCard}
+                  {row.qtyPropertyCard || ""}
                 </td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.qtyPhysicalCount}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageQty}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.qtyPhysicalCount || "0"}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageQty || ""}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageValue > 0 ? row.shortageValue.toLocaleString("en-US", { minimumFractionDigits: 2 }) : ""}</td>
                 <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{row.remarks}</td>
               </tr>
             ))}
