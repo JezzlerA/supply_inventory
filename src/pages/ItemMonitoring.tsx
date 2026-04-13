@@ -53,18 +53,10 @@ interface InventoryOption {
   item_name: string;
 }
 
-const POSSESSION_STATUSES = ["With User", "Returned to Inventory", "Transferred", "Missing"];
-const CONDITION_STATUSES = ["Functional", "Non-Functional", "Damaged", "Under Repair"];
 
-const possessionColor = (status: string) => {
-  switch (status) {
-    case "With User": return "bg-emerald-100 text-emerald-800 border-emerald-200";
-    case "Missing": return "bg-red-100 text-red-800 border-red-200";
-    case "Transferred": return "bg-amber-100 text-amber-800 border-amber-200";
-    case "Returned to Inventory": return "bg-blue-100 text-blue-800 border-blue-200";
-    default: return "bg-muted text-muted-foreground";
-  }
-};
+const CONDITION_STATUSES = ["Functional", "Non-Functional", "Damaged", "Under Repair", "Missing", "Transferred", "Other"];
+
+
 
 const conditionColor = (status: string) => {
   switch (status) {
@@ -72,6 +64,8 @@ const conditionColor = (status: string) => {
     case "Non-Functional": return "bg-red-100 text-red-800 border-red-200";
     case "Damaged": return "bg-orange-100 text-orange-800 border-orange-200";
     case "Under Repair": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "Missing": return "bg-rose-100 text-rose-800 border-rose-200";
+    case "Transferred": return "bg-blue-100 text-blue-800 border-blue-200";
     default: return "bg-muted text-muted-foreground";
   }
 };
@@ -94,10 +88,10 @@ const ItemMonitoring = () => {
 
   // Update form
   const [updateForm, setUpdateForm] = useState({
-    possession_status: "",
     condition_status: "",
     notes: "",
   });
+  const [customStatus, setCustomStatus] = useState("");
 
   useEffect(() => {
     fetchUsers();
@@ -136,21 +130,28 @@ const ItemMonitoring = () => {
 
   const openUpdateDialog = (item: AssignedItem) => {
     setSelectedItem(item);
+    const isCustom = !CONDITION_STATUSES.includes(item.condition_status) && item.condition_status !== "";
     setUpdateForm({
-      possession_status: item.possession_status,
-      condition_status: item.condition_status,
+      condition_status: isCustom ? "Other" : item.condition_status,
       notes: "",
     });
+    setCustomStatus(isCustom ? item.condition_status : "");
     setUpdateDialogOpen(true);
   };
 
   const handleUpdateStatus = async () => {
     if (!selectedItem || !user) return;
+    const finalConditionStatus = updateForm.condition_status === "Other" ? customStatus : updateForm.condition_status;
+    
+    if (updateForm.condition_status === "Other" && !customStatus.trim()) {
+      toast({ title: "Error", description: "Please specify the custom condition", variant: "destructive" });
+      return;
+    }
+
     const { error: updateError } = await supabase
       .from("assigned_items")
       .update({
-        possession_status: updateForm.possession_status,
-        condition_status: updateForm.condition_status,
+        condition_status: finalConditionStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", selectedItem.id);
@@ -163,10 +164,8 @@ const ItemMonitoring = () => {
     // Log status change
     await supabase.from("item_status_history").insert({
       assigned_item_id: selectedItem.id,
-      previous_possession_status: selectedItem.possession_status,
-      new_possession_status: updateForm.possession_status,
       previous_condition_status: selectedItem.condition_status,
-      new_condition_status: updateForm.condition_status,
+      new_condition_status: finalConditionStatus,
       updated_by: user.id,
       notes: updateForm.notes,
     });
@@ -206,7 +205,6 @@ const ItemMonitoring = () => {
       item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.serial_number.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = statusFilter === "all" ||
-      item.possession_status === statusFilter ||
       item.condition_status === statusFilter;
     return matchesSearch && matchesFilter;
   });
@@ -300,7 +298,7 @@ const ItemMonitoring = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      {POSSESSION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+
                       {CONDITION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -320,7 +318,7 @@ const ItemMonitoring = () => {
                           <TableHead>Serial #</TableHead>
                           <TableHead>Date Assigned</TableHead>
                           <TableHead>Location</TableHead>
-                          <TableHead>Possession</TableHead>
+
                           <TableHead>Condition</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -335,11 +333,7 @@ const ItemMonitoring = () => {
                             </TableCell>
                             <TableCell>{format(new Date(item.date_assigned), "MMM d, yyyy")}</TableCell>
                             <TableCell>{item.current_location || "—"}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={possessionColor(item.possession_status)}>
-                                {item.possession_status}
-                              </Badge>
-                            </TableCell>
+
                             <TableCell>
                               <Badge variant="outline" className={conditionColor(item.condition_status)}>
                                 {item.condition_status}
@@ -382,24 +376,26 @@ const ItemMonitoring = () => {
             <DialogTitle>Update Status — {selectedItem?.item_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Possession Status</Label>
-              <Select value={updateForm.possession_status} onValueChange={val => setUpdateForm(f => ({ ...f, possession_status: val }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {POSSESSION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+
             <div>
               <Label>Condition Status</Label>
-              <Select value={updateForm.condition_status} onValueChange={val => setUpdateForm(f => ({ ...f, condition_status: val }))}>
+              <Select value={updateForm.condition_status} onValueChange={val => setUpdateForm(f => ({ ... f, condition_status: val }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CONDITION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            {updateForm.condition_status === "Other" && (
+              <div>
+                <Label>Specify Condition</Label>
+                <Input 
+                  placeholder="Type custom condition..." 
+                  value={customStatus} 
+                  onChange={e => setCustomStatus(e.target.value)} 
+                />
+              </div>
+            )}
             <div>
               <Label>Update Notes</Label>
               <Textarea value={updateForm.notes} onChange={e => setUpdateForm(f => ({ ...f, notes: e.target.value }))} placeholder="Reason for status change..." />
@@ -426,7 +422,7 @@ const ItemMonitoring = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Possession</TableHead>
+
                     <TableHead>Condition</TableHead>
                     <TableHead>Updated By</TableHead>
                     <TableHead>Notes</TableHead>
@@ -436,17 +432,7 @@ const ItemMonitoring = () => {
                   {statusHistory.map(h => (
                     <TableRow key={h.id}>
                       <TableCell className="text-xs">{format(new Date(h.created_at), "MMM d, yyyy h:mm a")}</TableCell>
-                      <TableCell>
-                        {h.previous_possession_status !== h.new_possession_status ? (
-                          <span className="text-xs">
-                            <span className="text-muted-foreground">{h.previous_possession_status}</span>
-                            {" → "}
-                            <span className="font-medium">{h.new_possession_status}</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No change</span>
-                        )}
-                      </TableCell>
+
                       <TableCell>
                         {h.previous_condition_status !== h.new_condition_status ? (
                           <span className="text-xs">

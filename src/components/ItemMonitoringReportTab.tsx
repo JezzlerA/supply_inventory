@@ -22,7 +22,7 @@ interface AssignedItem {
   item_name: string;
   serial_number: string;
   date_assigned: string;
-  possession_status: string;
+
   condition_status: string;
 }
 
@@ -39,22 +39,14 @@ interface ReportItem {
   item_name: string;
   serial_number: string;
   transaction_type: string;
-  possession_status: string;
+
   condition_status: string;
   date: string;
   status: string;
   original_date: string;
 }
 
-const possessionColor = (status: string) => {
-  switch (status) {
-    case "With User": return "bg-emerald-100 text-emerald-800 border-emerald-200";
-    case "Missing": return "bg-red-100 text-red-800 border-red-200";
-    case "Transferred": return "bg-amber-100 text-amber-800 border-amber-200";
-    case "Returned to Inventory": return "bg-blue-100 text-blue-800 border-blue-200";
-    default: return "bg-muted text-muted-foreground";
-  }
-};
+
 
 const conditionColor = (status: string) => {
   switch (status) {
@@ -62,6 +54,8 @@ const conditionColor = (status: string) => {
     case "Non-Functional": return "bg-red-100 text-red-800 border-red-200";
     case "Damaged": return "bg-orange-100 text-orange-800 border-orange-200";
     case "Under Repair": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "Missing": return "bg-rose-100 text-rose-800 border-rose-200";
+    case "Transferred": return "bg-blue-100 text-blue-800 border-blue-200";
     default: return "bg-muted text-muted-foreground";
   }
 };
@@ -122,11 +116,11 @@ const ItemMonitoringReportTab = () => {
         item_name: item.item_name,
         serial_number: serial,
         transaction_type: "Assigned",
-        possession_status: item.possession_status,
+
         condition_status: item.condition_status,
         date: format(new Date(item.date_assigned), "MMM d, yyyy"),
         original_date: item.date_assigned,
-        status: item.possession_status === "With User" ? "Approved" : item.possession_status,
+        status: "Approved",
       });
     });
 
@@ -141,7 +135,7 @@ const ItemMonitoringReportTab = () => {
         item_name: tx.item_name,
         serial_number: matchedAssigned?.serial_number || matchedAssigned?.inventory_items?.serial_number || "—",
         transaction_type: tx.transaction_type,
-        possession_status: matchedAssigned?.possession_status || "—",
+
         condition_status: matchedAssigned?.condition_status || "—",
         date: format(new Date(tx.created_at), "MMM d, yyyy"),
         original_date: tx.created_at,
@@ -265,7 +259,7 @@ const ItemMonitoringReportTab = () => {
                           <TableHead>Item Name</TableHead>
                           <TableHead>Serial Number</TableHead>
                           <TableHead>Transaction Type</TableHead>
-                          <TableHead>Possession Status</TableHead>
+
                           <TableHead>Condition Status</TableHead>
                           <TableHead>Date</TableHead>
                           <TableHead>Status</TableHead>
@@ -278,11 +272,7 @@ const ItemMonitoringReportTab = () => {
                             <TableCell className="font-medium">{item.item_name}</TableCell>
                             <TableCell className="text-muted-foreground">{item.serial_number || "—"}</TableCell>
                             <TableCell>{item.transaction_type}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={possessionColor(item.possession_status)}>
-                                {item.possession_status}
-                              </Badge>
-                            </TableCell>
+
                             <TableCell>
                               <Badge variant="outline" className={conditionColor(item.condition_status)}>
                                 {item.condition_status}

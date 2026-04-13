@@ -5,7 +5,7 @@ interface ReportItem {
   item_name: string;
   serial_number: string;
   transaction_type: string;
-  possession_status: string;
+
   condition_status: string;
   date: string;
   status: string;
@@ -112,7 +112,7 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
             <th className="text-left py-2 px-1">Item Name</th>
             <th className="text-left py-2 px-1">Serial Number</th>
             <th className="text-left py-2 px-1">Transaction Type</th>
-            <th className="text-left py-2 px-1">Possession Status</th>
+
             <th className="text-left py-2 px-1">Condition Status</th>
             <th className="text-left py-2 px-1">Date</th>
             <th className="text-left py-2 px-1">Status</th>
@@ -125,7 +125,7 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
               <td className="py-1.5 px-1">{item.item_name}</td>
               <td className="py-1.5 px-1">{item.serial_number || "—"}</td>
               <td className="py-1.5 px-1">{item.transaction_type}</td>
-              <td className="py-1.5 px-1">{item.possession_status}</td>
+
               <td className="py-1.5 px-1">{item.condition_status}</td>
               <td className="py-1.5 px-1">{item.date}</td>
               <td className="py-1.5 px-1">{item.status}</td>
