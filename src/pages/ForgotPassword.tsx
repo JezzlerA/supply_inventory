@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { GraduationCap } from "lucide-react";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,9 +21,9 @@ const ForgotPassword = () => {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Email sent", description: "Check your email for the reset link." });
+      showSuccess("Email sent", "Check your email for the reset link.");
     }
   };
 
@@ -46,6 +47,15 @@ const ForgotPassword = () => {
           <Link to="/login" className="text-primary hover:underline">Back to Login</Link>
         </p>
       </div>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

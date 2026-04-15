@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Bell, Check, X, Clock, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,7 @@ const NotificationBell = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
   const fetchRequests = async () => {
@@ -60,7 +61,7 @@ const NotificationBell = () => {
     const request = requests.find(r => r.id === id);
     const { error } = await supabase.from("supply_requests").update({ status }).eq("id", id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
       return;
     }
 
@@ -80,7 +81,7 @@ const NotificationBell = () => {
       });
     }
 
-    toast({ title: `Request ${status}` });
+    showSuccess(`Request ${status}`);
     fetchRequests();
   };
 
@@ -246,6 +247,15 @@ const NotificationBell = () => {
           </div>
         )}
       </PopoverContent>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </Popover>
   );
 };

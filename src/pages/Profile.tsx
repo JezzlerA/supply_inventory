@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 
 const Profile = () => {
   const { user, profile, role } = useAuth();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -36,7 +38,7 @@ const Profile = () => {
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
-      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      showError(uploadError.message, undefined, "Upload failed");
       return;
     }
 
@@ -46,7 +48,7 @@ const Profile = () => {
 
     // Save avatar_url to profiles table
     await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
-    toast({ title: "Photo updated!" });
+    showSuccess("Photo updated!");
   };
 
   const handleSave = async () => {
@@ -59,9 +61,9 @@ const Profile = () => {
 
     setSaving(false);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Profile updated successfully!" });
+      showSuccess("Profile updated successfully!");
     }
   };
 
@@ -147,6 +149,15 @@ const Profile = () => {
           </div>
         </CardContent>
       </Card>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

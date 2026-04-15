@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { LogIn, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { SystemLogo } from "@/components/SystemLogo";
 
@@ -15,7 +16,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +24,7 @@ const Login = () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Login failed");
     } else {
       navigate("/dashboard");
     }
@@ -216,6 +217,15 @@ const Login = () => {
           </p>
         </div>
       </div>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

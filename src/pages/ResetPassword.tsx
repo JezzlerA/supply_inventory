@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -25,9 +26,9 @@ const ResetPassword = () => {
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Password updated!" });
+      showSuccess("Password updated!");
       navigate("/login");
     }
   };
@@ -44,6 +45,15 @@ const ResetPassword = () => {
           <Button type="submit" className="w-full" disabled={loading}>Update Password</Button>
         </form>
       </div>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

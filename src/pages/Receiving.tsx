@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
 import { Search } from "lucide-react";
 
@@ -20,7 +21,7 @@ const Receiving = () => {
     item_name: "", description: "", category_id: "", unit_of_measure: "", quantity: "", unit_cost: "",
     date_received: new Date().toISOString().split("T")[0], supplier: "", reference_number: "", size: "",
   });
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const { user } = useAuth();
 
   const fetchData = async () => {
@@ -87,9 +88,9 @@ const Receiving = () => {
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Receipt recorded successfully!" });
+      showSuccess("Receipt recorded successfully!");
       setForm({ item_name: "", description: "", category_id: "", unit_of_measure: "", quantity: "", unit_cost: "",
         date_received: new Date().toISOString().split("T")[0], supplier: "", reference_number: "", size: "" });
       fetchData();
@@ -223,6 +224,15 @@ const Receiving = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

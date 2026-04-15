@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import {
   Settings as SettingsIcon, User, Lock, Users, Shield, Search,
   Loader2, KeyRound, Save, Eye, EyeOff
@@ -28,7 +29,7 @@ interface UserProfile {
 
 const Settings = () => {
   const { user, profile, role, loading: authLoading } = useAuth();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   // Profile state
   const [fullName, setFullName] = useState("");
@@ -84,20 +85,20 @@ const Settings = () => {
     const { error } = await supabase.from("profiles").update({ full_name: fullName, email }).eq("id", user.id);
     setSavingProfile(false);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Profile updated successfully!" });
+      showSuccess("Profile updated successfully!");
     }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
-      toast({ title: "New password must be at least 6 characters", variant: "destructive" });
+      showError("New password must be at least 6 characters");
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords do not match", variant: "destructive" });
+      showError("Passwords do not match");
       return;
     }
     setChangingPassword(true);
@@ -109,16 +110,16 @@ const Settings = () => {
     });
     if (signInError) {
       setChangingPassword(false);
-      toast({ title: "Current password is incorrect", variant: "destructive" });
+      showError("Current password is incorrect");
       return;
     }
 
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setChangingPassword(false);
     if (error) {
-      toast({ title: "Failed to update password", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Failed to update password");
     } else {
-      toast({ title: "Password changed successfully!" });
+      showSuccess("Password changed successfully!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -134,9 +135,9 @@ const Settings = () => {
     });
     setActionLoading(null);
     if (error || data?.error) {
-      toast({ title: "Failed to change role", description: data?.error || error?.message, variant: "destructive" });
+      showError(data?.error || error?.message, undefined, "Failed to change role");
     } else {
-      toast({ title: `Role changed to ${newRole}` });
+      showSuccess(`Role changed to ${newRole}`);
       fetchUsers();
     }
   };
@@ -150,9 +151,9 @@ const Settings = () => {
     });
     setActionLoading(null);
     if (error || data?.error) {
-      toast({ title: "Failed to update status", description: data?.error || error?.message, variant: "destructive" });
+      showError(data?.error || error?.message, undefined, "Failed to update status");
     } else {
-      toast({ title: `Account ${data.status === "active" ? "activated" : "deactivated"}` });
+      showSuccess(`Account ${data.status === "active" ? "activated" : "deactivated"}`);
       fetchUsers();
     }
   };
@@ -160,7 +161,7 @@ const Settings = () => {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetDialog || resetPassword.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+      showError("Password must be at least 6 characters");
       return;
     }
     setResetting(true);
@@ -169,9 +170,9 @@ const Settings = () => {
     });
     setResetting(false);
     if (error || data?.error) {
-      toast({ title: "Failed to reset password", description: data?.error || error?.message, variant: "destructive" });
+      showError(data?.error || error?.message, undefined, "Failed to reset password");
     } else {
-      toast({ title: "Password reset successfully!" });
+      showSuccess("Password reset successfully!");
       setResetDialog(null);
       setResetPasswordVal("");
     }
@@ -436,6 +437,15 @@ const Settings = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -102,66 +102,65 @@ const ReportFilterModal = ({ open, onOpenChange, onApply }: ReportFilterModalPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Report Date Filter</DialogTitle>
-          <DialogDescription>
-            Select a specific period to filter the report data before printing.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label>Filter Type</Label>
-            <Select value={filterType} onValueChange={(val) => setFilterType(val as FilterType)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Time</SelectItem>
-                <SelectItem value="Day">Specific Day</SelectItem>
-                <SelectItem value="Week">Specific Week</SelectItem>
-                <SelectItem value="Month">Specific Month</SelectItem>
-                <SelectItem value="Year">Specific Year</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {filterType !== "All" && (
-            <div className="grid gap-2">
-              <Label>Select {filterType}</Label>
-              {filterType === "Day" && (
-                <Input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
-              )}
-              {filterType === "Week" && (
-                <Input type="week" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
-              )}
-              {filterType === "Month" && (
-                <Input type="month" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
-              )}
-              {filterType === "Year" && (
-                <Select value={yearValue} onValueChange={setYearValue}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getYears().map((y) => (
-                      <SelectItem key={y} value={y}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          )}
+    <Modal
+      isOpen={open}
+      onClose={() => onOpenChange(false)}
+      title="Report Date Filter"
+      description="Select a specific period to filter the report data before printing."
+      size="sm"
+    >
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <Label>Filter Type</Label>
+          <Select value={filterType} onValueChange={(val) => setFilterType(val as FilterType)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Time</SelectItem>
+              <SelectItem value="Day">Specific Day</SelectItem>
+              <SelectItem value="Week">Specific Week</SelectItem>
+              <SelectItem value="Month">Specific Month</SelectItem>
+              <SelectItem value="Year">Specific Year</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <DialogFooter>
+
+        {filterType !== "All" && (
+          <div className="grid gap-2">
+            <Label>Select {filterType}</Label>
+            {filterType === "Day" && (
+              <Input autoFocus type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
+            )}
+            {filterType === "Week" && (
+              <Input autoFocus type="week" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
+            )}
+            {filterType === "Month" && (
+              <Input autoFocus type="month" value={dateValue} onChange={(e) => setDateValue(e.target.value)} />
+            )}
+            {filterType === "Year" && (
+              <Select value={yearValue} onValueChange={setYearValue}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getYears().map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleApply} disabled={filterType !== "All" && !dateValue && filterType !== "Year"}>
             Apply & Print
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 };
 

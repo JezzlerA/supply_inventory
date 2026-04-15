@@ -1,29 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
+import { Modal } from "@/components/ui/modal";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Send, Pencil, Trash2, MoreHorizontal, AlertCircle } from "lucide-react";
+import { Search, Send, Pencil, Trash2, MoreHorizontal, AlertCircle, Loader2, PackageX } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-
-const offices = ["College of Education", "Accounting Office", "Cashier's Office", "Registrar's Office", "College of Arts & Sciences", "Dean's Office", "Library", "ICT Office", "HR Office", "Student Affairs Office"];
 
 const Inventory = () => {
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role, profile } = useAuth();
 
   // Request dialog
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestItem, setRequestItem] = useState<any>(null);
   const [requestForm, setRequestForm] = useState({ quantity: "", requesting_office: "", requested_by: "" });
+  const [requestLoading, setRequestLoading] = useState(false);
+  const quantityRef = useRef<HTMLInputElement>(null);
 
   // Out of stock dialog
   const [outOfStockOpen, setOutOfStockOpen] = useState(false);
@@ -32,10 +32,13 @@ const Inventory = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editForm, setEditForm] = useState({ item_name: "", description: "", unit_of_measure: "", unit_cost: "", stock_quantity: "" });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteItem, setDeleteItem] = useState<any>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchItems = async () => {
     const { data } = await supabase.from("inventory_items").select("*, categories(name)").order("updated_at", { ascending: false });
@@ -50,7 +53,6 @@ const Inventory = () => {
     (i.description && i.description.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Helper to check if item matches by serial number
   const matchesBySerialNumber = (item: any) => {
     return search && item.serial_number && item.serial_number.toLowerCase().includes(search.toLowerCase());
   };
@@ -61,23 +63,16 @@ const Inventory = () => {
     return { label: "In Stock", cls: "bg-success/10 text-success" };
   };
 
-  // Handle request button click - check stock first
   const handleRequestClick = (item: any) => {
-    // Check user office assignment
     const officeLocation = (profile as any)?.office_location;
     if (!officeLocation || officeLocation === "Unassigned Office") {
-      toast({ 
-        title: "Action required", 
-        description: "Please contact admin to assign your office before making a request.", 
-        variant: "destructive" 
-      });
+      showError("Please contact admin to assign your office before making a request.", undefined, "Action required");
       return;
     }
 
     if (item.stock_quantity === 0) {
       setRequestItem(item);
       setOutOfStockOpen(true);
-      // Also create a notification for the user
       if (user) {
         supabase.from("notifications").insert({
           user_id: user.id,
@@ -89,19 +84,19 @@ const Inventory = () => {
       return;
     }
     setRequestItem(item);
-    
-    // Auto-fill form
-    setRequestForm({ 
-      quantity: "", 
-      requesting_office: officeLocation, 
-      requested_by: profile?.full_name || "" 
+    setRequestForm({
+      quantity: "",
+      requesting_office: officeLocation,
+      requested_by: profile?.full_name || ""
     });
     setRequestOpen(true);
+    setTimeout(() => quantityRef.current?.focus(), 100);
   };
 
-  // Request item → creates supply_request
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requestForm.quantity || parseInt(requestForm.quantity) < 1) return;
+    setRequestLoading(true);
     const { data: insertedRequest, error } = await supabase.from("supply_requests").insert({
       item_name: requestItem.item_name,
       quantity: parseInt(requestForm.quantity),
@@ -111,9 +106,8 @@ const Inventory = () => {
       date_requested: new Date().toISOString().split("T")[0],
     }).select().single();
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      // Log transaction linked to the supply request
       await supabase.from("user_transactions").insert({
         user_id: user?.id,
         item_name: requestItem.item_name,
@@ -124,15 +118,16 @@ const Inventory = () => {
         related_id: insertedRequest.id,
         notes: `Requested by ${requestForm.requested_by} for ${requestForm.requesting_office}`,
       });
-      toast({ title: "Request Submitted", description: `Request for "${requestItem.item_name}" has been sent for approval.` });
+      showSuccess("Request Submitted", `Request for "${requestItem.item_name}" has been sent for approval.`);
       setRequestOpen(false);
       setRequestForm({ quantity: "", requesting_office: "", requested_by: "" });
     }
+    setRequestLoading(false);
   };
 
-  // Edit item
   const openEdit = (item: any) => {
     setEditItem(item);
+    setEditErrors({});
     setEditForm({
       item_name: item.item_name,
       description: item.description || "",
@@ -143,8 +138,20 @@ const Inventory = () => {
     setEditOpen(true);
   };
 
+  const validateEdit = () => {
+    const errors: Record<string, string> = {};
+    if (!editForm.item_name.trim()) errors.item_name = "Item name is required.";
+    if (!editForm.unit_of_measure.trim()) errors.unit_of_measure = "Unit of measure is required.";
+    if (!editForm.unit_cost || isNaN(Number(editForm.unit_cost))) errors.unit_cost = "Enter a valid cost.";
+    if (!editForm.stock_quantity || isNaN(Number(editForm.stock_quantity))) errors.stock_quantity = "Enter a valid quantity.";
+    return errors;
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateEdit();
+    if (Object.keys(errors).length > 0) { setEditErrors(errors); return; }
+    setEditLoading(true);
     const { error } = await supabase.from("inventory_items").update({
       item_name: editForm.item_name,
       description: editForm.description,
@@ -154,25 +161,27 @@ const Inventory = () => {
       updated_at: new Date().toISOString(),
     }).eq("id", editItem.id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message || "Something went wrong. Please try again.", () => { close(); setEditOpen(true); });
     } else {
-      toast({ title: "Item Updated", description: `"${editForm.item_name}" has been updated.` });
       setEditOpen(false);
       fetchItems();
+      showSuccess("Item updated successfully");
     }
+    setEditLoading(false);
   };
 
-  // Delete item
   const handleDelete = async () => {
     if (!deleteItem) return;
+    setDeleteLoading(true);
     const { error } = await supabase.from("inventory_items").delete().eq("id", deleteItem.id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     } else {
-      toast({ title: "Item Deleted", description: `"${deleteItem.item_name}" has been removed.` });
+      showSuccess("Item Deleted", `"${deleteItem.item_name}" has been removed.`);
       setDeleteOpen(false);
       fetchItems();
     }
+    setDeleteLoading(false);
   };
 
   return (
@@ -259,76 +268,181 @@ const Inventory = () => {
         </CardContent>
       </Card>
 
-      {/* Out of Stock Dialog */}
-      <AlertDialog open={outOfStockOpen} onOpenChange={setOutOfStockOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-destructive" /> Item Unavailable
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Sorry, <strong>"{requestItem?.item_name}"</strong> is currently <strong>out of stock</strong>. 
-              Please check back later or contact the Supply Office for assistance.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction>Understood</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Out of Stock Modal */}
+      <Modal
+        isOpen={outOfStockOpen}
+        onClose={() => setOutOfStockOpen(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <PackageX className="w-5 h-5 text-destructive" />
+            Item Unavailable
+          </span>
+        }
+        size="sm"
+        isAlert
+      >
+        <p className="text-sm text-muted-foreground">
+          Sorry, <strong>"{requestItem?.item_name}"</strong> is currently <strong>out of stock</strong>.
+          Please check back later or contact the Supply Office for assistance.
+        </p>
+        <div className="flex justify-end mt-4">
+          <Button onClick={() => setOutOfStockOpen(false)}>Understood</Button>
+        </div>
+      </Modal>
 
-      {/* Request Item Dialog */}
-      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Request: {requestItem?.item_name}</DialogTitle></DialogHeader>
-          <form onSubmit={handleRequestSubmit} className="space-y-4">
-            <div>
-              <Label>Available Stock</Label>
-              <p className="text-sm text-muted-foreground">{requestItem?.stock_quantity} {requestItem?.unit_of_measure}(s)</p>
-            </div>
-            <div><Label>Quantity *</Label><Input type="number" min="1" max={requestItem?.stock_quantity} value={requestForm.quantity} onChange={e => setRequestForm(p => ({ ...p, quantity: e.target.value }))} required /></div>
-            <div>
-              <Label>Requesting Office *</Label>
-              <Input 
-                value={(profile as any)?.office_location || ""} 
-                disabled 
-                className="bg-muted text-muted-foreground font-medium cursor-not-allowed" 
+      {/* Request Item Modal */}
+      <Modal
+        isOpen={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        title={<span className="flex items-center gap-2"><Send className="w-5 h-5" />Request: {requestItem?.item_name}</span>}
+        size="md"
+      >
+        <form onSubmit={handleRequestSubmit} className="space-y-4">
+          <div className="p-3 rounded-lg bg-muted/50 flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Available Stock</span>
+            <span className="font-semibold">{requestItem?.stock_quantity} {requestItem?.unit_of_measure}(s)</span>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="req-quantity">Quantity <span className="text-destructive">*</span></Label>
+            <Input
+              id="req-quantity"
+              ref={quantityRef}
+              type="number"
+              min="1"
+              max={requestItem?.stock_quantity}
+              value={requestForm.quantity}
+              onChange={e => setRequestForm(p => ({ ...p, quantity: e.target.value }))}
+              required
+              placeholder={`Max: ${requestItem?.stock_quantity}`}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Requesting Office</Label>
+            <Input
+              value={(profile as any)?.office_location || ""}
+              disabled
+              className="bg-muted text-muted-foreground font-medium cursor-not-allowed"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="req-requested-by">Requested By <span className="text-destructive">*</span></Label>
+            <Input
+              id="req-requested-by"
+              value={requestForm.requested_by}
+              onChange={e => setRequestForm(p => ({ ...p, requested_by: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={() => setRequestOpen(false)} disabled={requestLoading}>Cancel</Button>
+            <Button type="submit" disabled={requestLoading} className="gap-2">
+              {requestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Submit Request
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Item Modal */}
+      <Modal
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        title={<span className="flex items-center gap-2"><Pencil className="w-5 h-5" />Edit Item</span>}
+        size="md"
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="edit-item-name">Item Name <span className="text-destructive">*</span></Label>
+            <Input
+              id="edit-item-name"
+              autoFocus
+              value={editForm.item_name}
+              onChange={e => { setEditForm(p => ({ ...p, item_name: e.target.value })); setEditErrors(p => ({ ...p, item_name: "" })); }}
+            />
+            {editErrors.item_name && <p className="text-xs text-destructive">{editErrors.item_name}</p>}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-desc">Description</Label>
+            <Input id="edit-desc" value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-unit">Unit of Measure <span className="text-destructive">*</span></Label>
+            <Input
+              id="edit-unit"
+              value={editForm.unit_of_measure}
+              onChange={e => { setEditForm(p => ({ ...p, unit_of_measure: e.target.value })); setEditErrors(p => ({ ...p, unit_of_measure: "" })); }}
+            />
+            {editErrors.unit_of_measure && <p className="text-xs text-destructive">{editErrors.unit_of_measure}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="edit-cost">Unit Cost <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-cost"
+                type="number"
+                step="0.01"
+                value={editForm.unit_cost}
+                onChange={e => { setEditForm(p => ({ ...p, unit_cost: e.target.value })); setEditErrors(p => ({ ...p, unit_cost: "" })); }}
               />
+              {editErrors.unit_cost && <p className="text-xs text-destructive">{editErrors.unit_cost}</p>}
             </div>
-            <div><Label>Requested By *</Label><Input value={requestForm.requested_by} onChange={e => setRequestForm(p => ({ ...p, requested_by: e.target.value }))} required /></div>
-            <Button type="submit" className="w-full"><Send className="w-4 h-4 mr-2" /> Submit Request</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-1">
+              <Label htmlFor="edit-qty">Stock Quantity <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-qty"
+                type="number"
+                min="0"
+                value={editForm.stock_quantity}
+                onChange={e => { setEditForm(p => ({ ...p, stock_quantity: e.target.value })); setEditErrors(p => ({ ...p, stock_quantity: "" })); }}
+              />
+              {editErrors.stock_quantity && <p className="text-xs text-destructive">{editErrors.stock_quantity}</p>}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editLoading}>Cancel</Button>
+            <Button type="submit" disabled={editLoading} className="gap-2">
+              {editLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
-      {/* Edit Item Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Item</DialogTitle></DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div><Label>Item Name *</Label><Input value={editForm.item_name} onChange={e => setEditForm(p => ({ ...p, item_name: e.target.value }))} required /></div>
-            <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} /></div>
-            <div><Label>Unit of Measure *</Label><Input value={editForm.unit_of_measure} onChange={e => setEditForm(p => ({ ...p, unit_of_measure: e.target.value }))} required /></div>
-            <div><Label>Unit Cost *</Label><Input type="number" step="0.01" value={editForm.unit_cost} onChange={e => setEditForm(p => ({ ...p, unit_cost: e.target.value }))} required /></div>
-            <div><Label>Stock Quantity *</Label><Input type="number" min="0" value={editForm.stock_quantity} onChange={e => setEditForm(p => ({ ...p, stock_quantity: e.target.value }))} required /></div>
-            <Button type="submit" className="w-full">Save Changes</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title={<span className="flex items-center gap-2 text-destructive"><AlertCircle className="w-5 h-5" />Delete Item</span>}
+        size="sm"
+        isAlert
+      >
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete <strong>"{deleteItem?.item_name}"</strong>?
+          This action cannot be undone and will permanently remove the item from inventory.
+        </p>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>Cancel</Button>
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteLoading}
+            className="gap-2"
+          >
+            {deleteLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </Button>
+        </div>
+      </Modal>
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteItem?.item_name}"?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone. This will permanently remove the item from inventory.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

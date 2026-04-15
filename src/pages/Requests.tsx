@@ -4,14 +4,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
 import { Search } from "lucide-react";
 
 const Requests = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
   const fetchData = async () => {
@@ -26,7 +27,7 @@ const Requests = () => {
     const { error } = await supabase.from("supply_requests").update({ status }).eq("id", id);
     
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
       return;
     }
 
@@ -166,7 +167,7 @@ const Requests = () => {
       });
     }
 
-    toast({ title: `Request ${status}` });
+    showSuccess(`Request ${status}`);
     fetchData();
   };
 
@@ -238,6 +239,15 @@ const Requests = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { Search, Edit, History, Package, Users, Filter } from "lucide-react";
 import { format } from "date-fns";
 
@@ -72,6 +73,7 @@ const conditionColor = (status: string) => {
 
 const ItemMonitoring = () => {
   const { user } = useAuth();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [assignedItems, setAssignedItems] = useState<AssignedItem[]>([]);
@@ -144,7 +146,7 @@ const ItemMonitoring = () => {
     const finalConditionStatus = updateForm.condition_status === "Other" ? customStatus : updateForm.condition_status;
     
     if (updateForm.condition_status === "Other" && !customStatus.trim()) {
-      toast({ title: "Error", description: "Please specify the custom condition", variant: "destructive" });
+      showError("Please specify the custom condition", undefined, "Error");
       return;
     }
 
@@ -157,7 +159,7 @@ const ItemMonitoring = () => {
       .eq("id", selectedItem.id);
 
     if (updateError) {
-      toast({ title: "Error", description: updateError.message, variant: "destructive" });
+      showError(updateError.message, undefined, "Error");
       return;
     }
 
@@ -170,7 +172,7 @@ const ItemMonitoring = () => {
       notes: updateForm.notes,
     });
 
-    toast({ title: "Success", description: "Item status updated" });
+    showSuccess("Success", "Item status updated");
     setUpdateDialogOpen(false);
     if (selectedUser) fetchAssignedItems(selectedUser.id);
   };
@@ -455,6 +457,14 @@ const ItemMonitoring = () => {
         </DialogContent>
       </Dialog>
 
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

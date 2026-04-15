@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { Search } from "lucide-react";
 
 const offices = ["College of Education", "Accounting Office", "Cashier's Office", "Registrar's Office", "College of Arts & Sciences", "Dean's Office", "Library", "ICT Office", "HR Office", "Student Affairs Office"];
@@ -15,7 +16,7 @@ const Distribution = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ inventory_item_id: "", quantity: "", receiving_office: "", date_issued: new Date().toISOString().split("T")[0], supply_officer: "", remarks: "" });
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   const fetchData = async () => {
     const [invRes, distRes] = await Promise.all([
@@ -33,7 +34,7 @@ const Distribution = () => {
     const qty = parseInt(form.quantity);
     const item = items.find(i => i.id === form.inventory_item_id);
     if (!item || item.stock_quantity < qty) {
-      toast({ title: "Insufficient stock", variant: "destructive" });
+      showError("Insufficient stock");
       return;
     }
 
@@ -45,11 +46,11 @@ const Distribution = () => {
       await supabase.from("inventory_items")
         .update({ stock_quantity: item.stock_quantity - qty, updated_at: new Date().toISOString() })
         .eq("id", item.id);
-      toast({ title: "Distribution recorded!" });
+      showSuccess("Distribution recorded!");
       setForm({ inventory_item_id: "", quantity: "", receiving_office: "", date_issued: new Date().toISOString().split("T")[0], supply_officer: "", remarks: "" });
       fetchData();
     } else {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
     }
   };
 
@@ -158,6 +159,15 @@ const Distribution = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

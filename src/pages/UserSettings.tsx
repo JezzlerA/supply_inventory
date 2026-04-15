@@ -8,14 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import {
   Settings, Lock, Loader2, Save, Eye, EyeOff, Camera
 } from "lucide-react";
 
 const UserSettings = () => {
   const { user, profile, role, loading: authLoading } = useAuth();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,12 +54,12 @@ const UserSettings = () => {
     const fileExt = file.name.split(".").pop();
     const filePath = `avatars/${user.id}.${fileExt}`;
     const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
-    if (uploadError) { toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" }); return; }
+    if (uploadError) { showError(uploadError.message, undefined, "Upload failed"); return; }
     const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(filePath);
     const url = publicData.publicUrl + "?t=" + Date.now();
     setAvatarUrl(url);
     await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
-    toast({ title: "Photo updated!" });
+    showSuccess("Photo updated!");
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -68,8 +69,8 @@ const UserSettings = () => {
     const wantsPasswordChange = currentPassword || newPassword || confirmPassword;
 
     if (wantsPasswordChange) {
-      if (newPassword.length < 6) { toast({ title: "New password must be at least 6 characters", variant: "destructive" }); return; }
-      if (newPassword !== confirmPassword) { toast({ title: "Passwords do not match", variant: "destructive" }); return; }
+      if (newPassword.length < 6) { showError("New password must be at least 6 characters"); return; }
+      if (newPassword !== confirmPassword) { showError("Passwords do not match"); return; }
     }
 
     setSaving(true);
@@ -81,7 +82,7 @@ const UserSettings = () => {
 
     if (profileError) {
       setSaving(false);
-      toast({ title: "Error updating profile", description: profileError.message, variant: "destructive" });
+      showError(profileError.message, undefined, "Error updating profile");
       return;
     }
 
@@ -92,20 +93,20 @@ const UserSettings = () => {
       });
       if (signInError) {
         setSaving(false);
-        toast({ title: "Current password is incorrect", variant: "destructive" });
+        showError("Current password is incorrect");
         return;
       }
       const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
       if (pwError) {
         setSaving(false);
-        toast({ title: "Failed to update password", description: pwError.message, variant: "destructive" });
+        showError(pwError.message, undefined, "Failed to update password");
         return;
       }
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
     }
 
     setSaving(false);
-    toast({ title: wantsPasswordChange ? "Profile and password updated!" : "Profile updated successfully!" });
+    showSuccess(wantsPasswordChange ? "Profile and password updated!" : "Profile updated successfully!");
   };
 
   const initials = (fullName || "U").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -205,6 +206,15 @@ const UserSettings = () => {
           </Button>
         </div>
       </form>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

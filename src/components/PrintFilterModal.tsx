@@ -11,14 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/modal";
 import { Calendar } from "lucide-react";
 
 export type FilterType = "daily" | "weekly" | "monthly" | "custom";
@@ -121,103 +114,102 @@ export const PrintFilterModal: React.FC<PrintFilterModalProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            {title}
-          </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-4 py-4">
-          {/* Filter Type */}
-          <div className="grid gap-2">
-            <Label htmlFor="filterType">Filter Type</Label>
-            <Select
-              value={filterType}
-              onValueChange={(value) => setFilterType(value as FilterType)}
-            >
-              <SelectTrigger id="filterType">
-                <SelectValue placeholder="Select filter type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setFilterType("custom");
-                }}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setFilterType("custom");
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <p className="text-sm text-red-500 font-medium">{error}</p>
-          )}
-
-          {/* Date Range Preview */}
-          {startDate && endDate && (
-            <p className="text-sm text-muted-foreground">
-              Printing records from{" "}
-              <span className="font-medium text-foreground">
-                {new Date(startDate).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>{" "}
-              to{" "}
-              <span className="font-medium text-foreground">
-                {new Date(endDate).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
-            </p>
-          )}
+    <Modal
+      isOpen={open}
+      onClose={() => handleOpenChange(false)}
+      title={
+        <span className="flex items-center gap-2">
+          <Calendar className="w-5 h-5" />
+          {title}
+        </span>
+      }
+      description={description}
+      size="md"
+    >
+      <div className="grid gap-4">
+        {/* Filter Type */}
+        <div className="grid gap-2">
+          <Label htmlFor="filterType">Filter Type</Label>
+          <Select
+            value={filterType}
+            onValueChange={(value) => setFilterType(value as FilterType)}
+          >
+            <SelectTrigger id="filterType">
+              <SelectValue placeholder="Select filter type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+        {/* Date Range */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="startDate">Start Date</Label>
+            <Input
+              id="startDate"
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setFilterType("custom");
+              }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="endDate">End Date</Label>
+            <Input
+              id="endDate"
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setFilterType("custom");
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <p className="text-sm text-destructive font-medium">{error}</p>
+        )}
+
+        {/* Date Range Preview */}
+        {startDate && endDate && (
+          <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
+            Printing records from{" "}
+            <span className="font-medium text-foreground">
+              {new Date(startDate).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </span>{" "}
+            to{" "}
+            <span className="font-medium text-foreground">
+              {new Date(endDate).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </span>
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
           <Button onClick={handleApply} className="gap-1.5">
             <Calendar className="w-4 h-4" />
             Apply & Print
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 };
 

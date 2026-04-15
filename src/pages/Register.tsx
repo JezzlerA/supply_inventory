@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { UserPlus, GraduationCap } from "lucide-react";
 
 const Register = () => {
@@ -15,12 +16,12 @@ const Register = () => {
   const [role, setRole] = useState<"user" | "admin">("user");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast({ title: "Passwords don't match", variant: "destructive" });
+      showError("Passwords don't match");
       return;
     }
     setLoading(true);
@@ -31,9 +32,9 @@ const Register = () => {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Registration failed", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Registration failed");
     } else {
-      toast({ title: "Account created!", description: "Please check your email to verify your account." });
+      showSuccess("Account created!", "Please check your email to verify your account.");
       navigate("/login");
     }
   };
@@ -86,6 +87,15 @@ const Register = () => {
           Already have an account? <Link to="/login" className="text-primary font-medium hover:underline">Log in</Link>
         </p>
       </div>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

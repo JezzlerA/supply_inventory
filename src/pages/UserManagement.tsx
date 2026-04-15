@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { UserPlus, Users, Shield, User, Search, Loader2, Eye, Building } from "lucide-react";
 import UserTransactionHistory from "@/components/UserTransactionHistory";
 
@@ -26,7 +27,7 @@ interface UserProfile {
 
 const UserManagement = () => {
   const { user, role, loading: authLoading } = useAuth();
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [offices, setOffices] = useState<{id: string, office_name: string}[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -61,7 +62,7 @@ const UserManagement = () => {
     const { data, error } = await supabase.from("offices").select("*").order("office_name");
     if (error) {
       console.error("Error fetching offices:", error);
-      toast({ title: "Failed to load offices", description: "Please ensure the database migration is applied.", variant: "destructive" });
+      showError("Please ensure the database migration is applied.", undefined, "Failed to load offices");
     }
     if (data) setOffices(data);
   };
@@ -79,7 +80,7 @@ const UserManagement = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+      showError("Password must be at least 6 characters");
       return;
     }
     setCreating(true);
@@ -90,9 +91,9 @@ const UserManagement = () => {
 
     setCreating(false);
     if (error || data?.error) {
-      toast({ title: "Failed to create user", description: data?.error || error?.message, variant: "destructive" });
+      showError(data?.error || error?.message, undefined, "Failed to create user");
     } else {
-      toast({ title: "User created successfully", description: `${fullName} has been added as ${newUserRole}.` });
+      showSuccess("User created successfully", `${fullName} has been added as ${newUserRole}.`);
       setDialogOpen(false);
       resetForm();
       fetchUsers();
@@ -124,9 +125,9 @@ const UserManagement = () => {
       .eq('id', editOfficeUser.id);
 
     if (error) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Update failed");
     } else {
-      toast({ title: "Office updated successfully" });
+      showSuccess("Office updated successfully");
       
       // Log to office_logs
       await supabase.from('office_logs').insert({
@@ -230,49 +231,50 @@ const UserManagement = () => {
       </Card>
 
       {/* Create User Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> Create New User</DialogTitle>
-            <DialogDescription>Fill in the details to create a new system account.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <Label>Full Name</Label>
-              <Input placeholder="Juan Dela Cruz" value={fullName} onChange={e => setFullName(e.target.value)} required />
+      {/* Create User Modal */}
+      <Modal
+        isOpen={dialogOpen}
+        onClose={() => { setDialogOpen(false); resetForm(); }}
+        title={<span className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> Create New User</span>}
+        description="Fill in the details to create a new system account."
+        size="md"
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="create-fullname">Full Name</Label>
+            <Input id="create-fullname" autoFocus placeholder="Juan Dela Cruz" value={fullName} onChange={e => setFullName(e.target.value)} required />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="create-email">Email</Label>
+            <Input id="create-email" type="email" placeholder="user@norsu.edu.ph" value={email} onChange={e => setEmail(e.target.value)} required />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="create-password">Password</Label>
+            <Input id="create-password" type="password" placeholder="Min. 6 characters" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+          </div>
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <div className="flex gap-3">
+              {(["user", "admin"] as const).map(r => (
+                <button key={r} type="button" onClick={() => setNewUserRole(r)}
+                  className={`flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors ${
+                    newUserRole === r
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card border-border hover:bg-muted"
+                  }`}>
+                  {r === "admin" ? "🛡️ Admin" : "👤 User"}
+                </button>
+              ))}
             </div>
-            <div>
-              <Label>Email</Label>
-              <Input type="email" placeholder="user@norsu.edu.ph" value={email} onChange={e => setEmail(e.target.value)} required />
-            </div>
-            <div>
-              <Label>Password</Label>
-              <Input type="password" placeholder="Min. 6 characters" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
-            </div>
-            <div>
-              <Label>Role</Label>
-              <div className="flex gap-3 mt-2">
-                {(["user", "admin"] as const).map(r => (
-                  <button key={r} type="button" onClick={() => setNewUserRole(r)}
-                    className={`flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors ${
-                      newUserRole === r
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card border-border hover:bg-muted"
-                    }`}>
-                    {r === "admin" ? "🛡️ Admin" : "👤 User"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={creating} className="gap-2">
-                {creating && <Loader2 className="w-4 h-4 animate-spin" />} Create User
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }} disabled={creating}>Cancel</Button>
+            <Button type="submit" disabled={creating} className="gap-2">
+              {creating && <Loader2 className="w-4 h-4 animate-spin" />} Create User
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {selectedUser && (
         <UserTransactionHistory
@@ -283,36 +285,47 @@ const UserManagement = () => {
         />
       )}
 
-      {/* Edit Office Dialog */}
-      <Dialog open={editOfficeOpen} onOpenChange={setEditOfficeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Building className="w-5 h-5" /> Edit Office Location</DialogTitle>
-            <DialogDescription>Assign a new office to {editOfficeUser?.full_name}.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Select Office</Label>
-              <select 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={selectedOffice} 
-                onChange={(e) => setSelectedOffice(e.target.value)}
-              >
-                <option value="" disabled>Select an office</option>
-                {offices.map((office) => (
-                  <option key={office.id} value={office.office_name}>
-                    {office.office_name}
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Edit Office Modal */}
+      <Modal
+        isOpen={editOfficeOpen}
+        onClose={() => setEditOfficeOpen(false)}
+        title={<span className="flex items-center gap-2"><Building className="w-5 h-5" /> Edit Office Location</span>}
+        description={`Assign a new office to ${editOfficeUser?.full_name}.`}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="office-select">Select Office</Label>
+            <select
+              id="office-select"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              value={selectedOffice}
+              onChange={(e) => setSelectedOffice(e.target.value)}
+              autoFocus
+            >
+              <option value="" disabled>Select an office</option>
+              {offices.map((office) => (
+                <option key={office.id} value={office.office_name}>
+                  {office.office_name}
+                </option>
+              ))}
+            </select>
           </div>
-          <DialogFooter>
+          <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" onClick={() => setEditOfficeOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdateOffice}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button onClick={handleUpdateOffice} disabled={!selectedOffice}>Save Changes</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };

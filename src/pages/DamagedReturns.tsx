@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { Modal } from "@/components/ui/modal";
+import { StatusModal } from "@/components/ui/status-modal";
+import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, AlertTriangle, RotateCcw, Package, Search } from "lucide-react";
 
@@ -19,7 +20,7 @@ const DamagedReturns = () => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ item_name: "", item_code: "", quantity: "", returning_office: "", date_returned: new Date().toISOString().split("T")[0], reason: "Other", status: "Damaged", notes: "" });
-  const { toast } = useToast();
+  const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
   const fetchData = async () => {
@@ -35,7 +36,7 @@ const DamagedReturns = () => {
 
     const { data: insertedReturn, error } = await supabase.from("damaged_returns").insert({ ...form, quantity: qty, reported_by: user?.id }).select().single();
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      showError(error.message, undefined, "Error");
       return;
     }
 
@@ -75,7 +76,7 @@ const DamagedReturns = () => {
       });
     }
 
-    toast({ title: "Return recorded!" });
+    showSuccess("Return recorded!");
     setOpen(false);
     setForm({ item_name: "", item_code: "", quantity: "", returning_office: "", date_returned: new Date().toISOString().split("T")[0], reason: "Other", status: "Damaged", notes: "" });
     fetchData();
@@ -128,7 +129,7 @@ const DamagedReturns = () => {
       }
     }
 
-    toast({ title: `Status updated to ${newStatus}` });
+    showSuccess(`Status updated to ${newStatus}`);
     fetchData();
   };
 
@@ -162,40 +163,47 @@ const DamagedReturns = () => {
           <h1 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="w-6 h-6" /> Damaged Item Returns</h1>
           <p className="text-muted-foreground">Process and track returned damaged supplies</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-2" /> Return Item</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Record Damaged Return</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div><Label>Item Name *</Label><Input value={form.item_name} onChange={e => setForm(p => ({ ...p, item_name: e.target.value }))} required /></div>
-              <div><Label>Item Code</Label><Input value={form.item_code} onChange={e => setForm(p => ({ ...p, item_code: e.target.value }))} /></div>
-              <div><Label>Quantity *</Label><Input type="number" min="1" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} required /></div>
-              <div>
-                <Label>Returning Office *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.returning_office} onChange={e => setForm(p => ({ ...p, returning_office: e.target.value }))} required>
-                  <option value="">Select office</option>
-                  {offices.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <div><Label>Date *</Label><Input type="date" value={form.date_returned} onChange={e => setForm(p => ({ ...p, date_returned: e.target.value }))} required /></div>
-              <div>
-                <Label>Reason *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}>
-                  {reasons.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Status *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
-                  {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
-              <Button type="submit" className="w-full">Record Return</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-2" /> Return Item</Button>
       </div>
+
+      {/* Record Return Modal */}
+      <Modal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title={<span className="flex items-center gap-2"><AlertTriangle className="w-5 h-5" />Record Damaged Return</span>}
+        size="md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1"><Label htmlFor="dr-item-name">Item Name <span className="text-destructive">*</span></Label><Input id="dr-item-name" autoFocus value={form.item_name} onChange={e => setForm(p => ({ ...p, item_name: e.target.value }))} required /></div>
+          <div className="space-y-1"><Label htmlFor="dr-item-code">Item Code</Label><Input id="dr-item-code" value={form.item_code} onChange={e => setForm(p => ({ ...p, item_code: e.target.value }))} /></div>
+          <div className="space-y-1"><Label htmlFor="dr-quantity">Quantity <span className="text-destructive">*</span></Label><Input id="dr-quantity" type="number" min="1" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} required /></div>
+          <div className="space-y-1">
+            <Label htmlFor="dr-office">Returning Office <span className="text-destructive">*</span></Label>
+            <select id="dr-office" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.returning_office} onChange={e => setForm(p => ({ ...p, returning_office: e.target.value }))} required>
+              <option value="">Select office</option>
+              {offices.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1"><Label htmlFor="dr-date">Date <span className="text-destructive">*</span></Label><Input id="dr-date" type="date" value={form.date_returned} onChange={e => setForm(p => ({ ...p, date_returned: e.target.value }))} required /></div>
+          <div className="space-y-1">
+            <Label htmlFor="dr-reason">Reason <span className="text-destructive">*</span></Label>
+            <select id="dr-reason" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}>
+              {reasons.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dr-status">Status <span className="text-destructive">*</span></Label>
+            <select id="dr-status" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
+              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1"><Label htmlFor="dr-notes">Notes</Label><Input id="dr-notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" className="gap-2"><RotateCcw className="w-4 h-4" />Record Return</Button>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         {summaryCards.map(s => (
@@ -272,6 +280,15 @@ const DamagedReturns = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <StatusModal
+        isOpen={status.open}
+        type={status.type}
+        title={status.title}
+        message={status.message}
+        onClose={close}
+        onRetry={status.onRetry}
+      />
     </div>
   );
 };
