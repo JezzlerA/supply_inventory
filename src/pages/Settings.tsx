@@ -240,7 +240,7 @@ const Settings = () => {
               <div className="space-y-2">
                 <Label>Assigned Office</Label>
                 <Input 
-                  value={(profile as any)?.office_location || "Supply Office"} 
+                  value={(profile as any)?.office_location || "Unassigned"} 
                   disabled 
                   className="bg-muted text-muted-foreground font-medium cursor-not-allowed" 
                 />
@@ -341,6 +341,7 @@ const Settings = () => {
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Role</TableHead>
+                        <TableHead>Office</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -358,6 +359,9 @@ const Settings = () => {
                                 {u.role === "admin" ? <Shield className="w-3 h-3" /> : <User className="w-3 h-3" />}
                                 {u.role}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{u.office_location || "Unassigned"}</span>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

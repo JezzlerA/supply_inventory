@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Admin access required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { email, password, full_name, role } = await req.json();
+    const { email, password, full_name, role, office_location } = await req.json();
     if (!email || !password || !full_name || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -40,7 +40,11 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, role },
+      user_metadata: { 
+        full_name, 
+        role,
+        office_location: role === 'admin' ? 'Supply Office' : (office_location || 'Unassigned Office')
+      },
     });
 
     if (createError) {

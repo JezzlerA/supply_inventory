@@ -46,6 +46,7 @@ const UserManagement = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<"user" | "admin">("user");
+  const [newUserOffice, setNewUserOffice] = useState("");
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -85,18 +86,27 @@ const UserManagement = () => {
     }
     setCreating(true);
 
+    const payload = { 
+      email, 
+      password, 
+      full_name: fullName, 
+      role: newUserRole,
+      office_location: newUserRole === "admin" ? "Supply Office" : newUserOffice
+    };
+
     const { data, error } = await supabase.functions.invoke("create-user", {
-      body: { email, password, full_name: fullName, role: newUserRole },
+      body: payload,
     });
 
     setCreating(false);
     if (error || data?.error) {
       showError(data?.error || error?.message, undefined, "Failed to create user");
     } else {
-      showSuccess("User created successfully", `${fullName} has been added as ${newUserRole}.`);
+      showSuccess("User created successfully", `${fullName} has been added as ${newUserRole} for ${payload.office_location}.`);
       setDialogOpen(false);
       resetForm();
-      fetchUsers();
+      // Add a small delay to allow triggers to finish before fetching
+      setTimeout(() => fetchUsers(), 500);
     }
   };
 
@@ -105,6 +115,7 @@ const UserManagement = () => {
     setEmail("");
     setPassword("");
     setNewUserRole("user");
+    setNewUserOffice("");
   };
 
   const filtered = users.filter(u =>
@@ -267,9 +278,38 @@ const UserManagement = () => {
               ))}
             </div>
           </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="create-office">Office Location</Label>
+            {newUserRole === "admin" ? (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md border border-dashed text-sm font-medium">
+                <Building className="w-4 h-4 text-primary" />
+                <span>Supply Office (Auto Assigned)</span>
+              </div>
+            ) : (
+              <select
+                id="create-office"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={newUserOffice}
+                onChange={(e) => setNewUserOffice(e.target.value)}
+                required={newUserRole === "user"}
+              >
+                <option value="" disabled>Select an office</option>
+                {offices.map((office) => (
+                  <option key={office.id} value={office.office_name}>
+                    {office.office_name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {newUserRole === "user" && !newUserOffice && (
+              <p className="text-[10px] text-destructive">User must select at least 1 office</p>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }} disabled={creating}>Cancel</Button>
-            <Button type="submit" disabled={creating} className="gap-2">
+            <Button type="submit" disabled={creating || (newUserRole === "user" && !newUserOffice)} className="gap-2">
               {creating && <Loader2 className="w-4 h-4 animate-spin" />} Create User
             </Button>
           </div>
