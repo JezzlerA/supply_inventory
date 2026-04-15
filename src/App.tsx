@@ -81,19 +81,41 @@ const AnimatedRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AnimatedRoutes />
-          <ChatWidgetWrapper />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const UnsupportedBrowser = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg text-center border-t-4 border-red-500">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Unsupported Browser</h1>
+        <p className="text-gray-700 mb-6">
+          This system is not supported on Opera Mini due to compatibility limitations.
+          Please use Chrome, Edge, or Firefox.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const isUnsupportedBrowser = /Opera Mini/i.test(navigator.userAgent);
+
+const App = () => {
+  if (isUnsupportedBrowser) {
+    return <UnsupportedBrowser />;
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AnimatedRoutes />
+            <ChatWidgetWrapper />
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
