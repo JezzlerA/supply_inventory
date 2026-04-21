@@ -66,3 +66,7 @@ DROP POLICY IF EXISTS "Authenticated users can upload to chat_attachments" ON st
 CREATE POLICY "Authenticated users can upload to chat_attachments"
 ON storage.objects FOR INSERT
 TO authenticated WITH CHECK (bucket_id = 'chat_attachments');
+
+-- Add indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_chat_messages_receiver_read_sender 
+ON public.chat_messages (receiver_id, read, sender_id);

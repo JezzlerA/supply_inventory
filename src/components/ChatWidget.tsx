@@ -47,6 +47,7 @@ const ChatWidget = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadPerUser, setUnreadPerUser] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"chats" | "broadcast">("chats");
   const [broadcastMessages, setBroadcastMessages] = useState<ChatMessage[]>([]);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({});
@@ -92,12 +93,29 @@ const ChatWidget = () => {
 
   const fetchUnread = async () => {
     if (!user) return;
+    
+    // Total unread count
     const { count } = await supabase
       .from("chat_messages")
       .select("*", { count: "exact", head: true })
       .eq("receiver_id", user.id)
       .eq("read", false);
     setUnreadCount(count || 0);
+
+    // Per-user unread counts
+    const { data: unreadData, error } = await supabase
+      .from("chat_messages")
+      .select("sender_id")
+      .eq("receiver_id", user.id)
+      .eq("read", false);
+
+    if (unreadData) {
+      const counts: Record<string, number> = {};
+      unreadData.forEach(msg => {
+        counts[msg.sender_id] = (counts[msg.sender_id] || 0) + 1;
+      });
+      setUnreadPerUser(counts);
+    }
   };
 
   const fetchUsers = async () => {
@@ -182,7 +200,13 @@ const ChatWidget = () => {
 
   useEffect(() => {
     if (!user) return;
-    const presenceChannel = supabase.channel("online-presence");
+    const presenceChannel = supabase.channel("online-presence", {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
     presenceChannel
       .on("presence", { event: "sync" }, () => {
         const state = presenceChannel.presenceState();
@@ -194,8 +218,10 @@ const ChatWidget = () => {
           return next;
         });
       })
-      .subscribe(async () => {
-        await presenceChannel.track({ userId: user?.id, isOnline: true });
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceChannel.track({ userId: user?.id, isOnline: true });
+        }
       });
 
     return () => { supabase.removeChannel(presenceChannel); };
@@ -512,8 +538,17 @@ const ChatWidget = () => {
               {activeTab === "broadcast" && !selectedUser ? <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center"><Megaphone className="w-5 h-5" /></div> : selectedUser ? getAvatarComponent(userProfiles[selectedUser]?.avatar_url || null, userProfiles[selectedUser]?.full_name || "U", "md") : <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden">{userProfile?.avatar_url ? <img src={userProfile.avatar_url} alt="You" className="w-full h-full object-cover" /> : <Users className="w-5 h-5" />}</div>}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{selectedUser ? selectedUserInfo?.full_name || "User" : activeTab === "broadcast" ? "Announcements" : "Inbox"}</div>
-              {selectedUser && selectedUserInfo && <div className="text-[11px] opacity-70 truncate">{selectedUserInfo.email}</div>}
+              <div className="font-semibold text-sm truncate flex items-center gap-2">
+                {selectedUser ? selectedUserInfo?.full_name || "User" : activeTab === "broadcast" ? "Announcements" : "Inbox"}
+                {selectedUser && userProfiles[selectedUser]?.is_online && (
+                  <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                )}
+              </div>
+              {selectedUser && selectedUserInfo && (
+                <div className="text-[11px] opacity-70 truncate flex items-center gap-1">
+                  {userProfiles[selectedUser]?.is_online ? "Online" : "Offline"} • {selectedUserInfo.email}
+                </div>
+              )}
               {!selectedUser && activeTab === "broadcast" && <div className="text-[11px] opacity-70">System Updates</div>}
               {!selectedUser && activeTab === "chats" && <div className="text-[11px] opacity-70">{userProfile?.full_name}</div>}
             </div>
@@ -548,9 +583,17 @@ const ChatWidget = () => {
                       {userProfiles[u.id]?.is_online && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate flex justify-between items-center">{u.full_name || "Unknown User"} {u.role === "admin" && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2 uppercase">Admin</span>}</div>
+                      <div className="font-medium text-sm truncate flex justify-between items-center">
+                        <span className="truncate">{u.full_name || "Unknown User"}</span>
+                        {u.role === "admin" && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2 uppercase flex-shrink-0">Admin</span>}
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                     </div>
+                    {unreadPerUser[u.id] > 0 && (
+                      <div className="ml-2 bg-primary text-primary-foreground text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
+                        {unreadPerUser[u.id] > 9 ? "9+" : unreadPerUser[u.id]}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
