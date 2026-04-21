@@ -229,9 +229,9 @@ const Dashboard = () => {
                     <div className="text-[11px] text-muted-foreground">{r.requesting_office}</div>
                   </div>
                   <span className={`text-[11px] px-2.5 py-1 rounded-full font-semibold shrink-0 ${
-                    r.status === "fulfilled" ? "bg-green-100 text-green-700" :
+                    r.status === "approved" || r.status === "fulfilled" ? "bg-green-100 text-green-700" :
                     r.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
-                  }`}>{r.status}</span>
+                  }`}>{r.status === "fulfilled" ? "approved" : r.status}</span>
                 </div>
               ))}
               {recentRequests.length === 0 && <p className="text-sm text-muted-foreground">No requests yet</p>}

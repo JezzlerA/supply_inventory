@@ -13,6 +13,7 @@ const NotificationBell = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+  const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
   const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
@@ -57,32 +58,59 @@ const NotificationBell = () => {
   const unreadNotifs = notifications.filter(n => !n.read).length;
   const totalBadge = (role === "admin" ? pendingCount : 0) + unreadNotifs;
 
-  const updateStatus = async (id: string, status: string) => {
-    const request = requests.find(r => r.id === id);
-    const { error } = await supabase.from("supply_requests").update({ status }).eq("id", id);
-    if (error) {
-      showError(error.message, undefined, "Error");
-      return;
+  const updateStatus = async (id: string, newStatus: string) => {
+    if (loadingIds[id]) return;
+    setLoadingIds(prev => ({ ...prev, [id]: true }));
+
+    try {
+      // 1. Fetch current status before proceeding
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from("supply_requests")
+        .select("status, user_id, item_name")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (!currentRequest || currentRequest.status !== "pending") {
+        showError("This request has already been processed.", undefined, "Already Processed");
+        fetchRequests();
+        return;
+      }
+
+      const { error } = await supabase
+        .from("supply_requests")
+        .update({ status: newStatus })
+        .eq("id", id)
+        .eq("status", "pending");
+
+      if (error) throw error;
+
+      const request = currentRequest;
+
+      // Send notification to user
+      if (request?.user_id) {
+        const notifTitle = newStatus === "approved" ? "Request Approved" : "Request Rejected";
+        const notifMessage = newStatus === "approved"
+          ? `Your requested item "${request.item_name}" has been approved.`
+          : `Your request for "${request.item_name}" has been rejected.`;
+
+        await supabase.from("notifications").insert({
+          user_id: request.user_id,
+          title: notifTitle,
+          message: notifMessage,
+          type: newStatus === "approved" ? "success" : "error",
+          related_id: id,
+        });
+      }
+
+      showSuccess(`Request ${newStatus}`);
+      fetchRequests();
+    } catch (e: any) {
+      showError(e.message || "Error processing request", undefined, "Error");
+    } finally {
+      setLoadingIds(prev => ({ ...prev, [id]: false }));
     }
-
-    // Send notification to user
-    if (request?.user_id) {
-      const notifTitle = status === "fulfilled" ? "Request Approved" : "Request Rejected";
-      const notifMessage = status === "fulfilled"
-        ? `Your requested item "${request.item_name}" has been approved.`
-        : `Your request for "${request.item_name}" has been rejected.`;
-
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        title: notifTitle,
-        message: notifMessage,
-        type: status === "fulfilled" ? "success" : "error",
-        related_id: id,
-      });
-    }
-
-    showSuccess(`Request ${status}`);
-    fetchRequests();
   };
 
   const markNotifRead = async (id: string) => {
@@ -99,6 +127,7 @@ const NotificationBell = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+      case "approved":
       case "fulfilled": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
       case "rejected": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
       default: return "bg-muted text-muted-foreground";
@@ -108,6 +137,7 @@ const NotificationBell = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending": return <Clock className="w-3 h-3" />;
+      case "approved":
       case "fulfilled": return <Check className="w-3 h-3" />;
       case "rejected": return <X className="w-3 h-3" />;
       default: return <FileText className="w-3 h-3" />;
@@ -170,7 +200,7 @@ const NotificationBell = () => {
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm truncate">{r.item_name}</span>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${getStatusColor(r.status)}`}>
-                                {r.status}
+                                {r.status === "fulfilled" ? "approved" : r.status}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">
@@ -182,11 +212,11 @@ const NotificationBell = () => {
 
                             {r.status === "pending" && (
                               <div className="flex gap-1.5 mt-2">
-                                <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" onClick={() => updateStatus(r.id, "fulfilled")}>
-                                  <Check className="w-3 h-3 mr-1" /> Approve
+                                <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" onClick={() => updateStatus(r.id, "approved")} disabled={loadingIds[r.id]}>
+                                  <Check className="w-3 h-3 mr-1" /> {loadingIds[r.id] ? "..." : "Approve"}
                                 </Button>
-                                <Button size="sm" variant="destructive" className="h-7 text-xs px-2.5" onClick={() => updateStatus(r.id, "rejected")}>
-                                  <X className="w-3 h-3 mr-1" /> Reject
+                                <Button size="sm" variant="destructive" className="h-7 text-xs px-2.5" onClick={() => updateStatus(r.id, "rejected")} disabled={loadingIds[r.id]}>
+                                  <X className="w-3 h-3 mr-1" /> {loadingIds[r.id] ? "..." : "Reject"}
                                 </Button>
                               </div>
                             )}

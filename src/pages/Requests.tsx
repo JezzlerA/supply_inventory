@@ -12,6 +12,7 @@ import { Search } from "lucide-react";
 const Requests = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
   const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
@@ -22,33 +23,57 @@ const Requests = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  const updateStatus = async (id: string, status: string) => {
-    const request = requests.find(r => r.id === id);
-    const { error } = await supabase.from("supply_requests").update({ status }).eq("id", id);
+  const updateStatus = async (id: string, newStatus: string) => {
+    if (loadingIds[id]) return;
     
-    if (error) {
-      showError(error.message, undefined, "Error");
-      return;
-    }
+    setLoadingIds(prev => ({ ...prev, [id]: true }));
 
-    // Send notification to the user who made the request
-    if (request?.user_id) {
-      const notifTitle = status === "fulfilled" ? "Request Approved" : "Request Rejected";
-      const notifMessage = status === "fulfilled"
-        ? `Your requested item "${request.item_name}" has been approved.`
-        : `Your request for "${request.item_name}" has been rejected.`;
+    try {
+      // 1. Fetch current status from DB before proceeding
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from("supply_requests")
+        .select("status, user_id, item_name, quantity, requesting_office, requested_by")
+        .eq("id", id)
+        .maybeSingle();
 
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        title: notifTitle,
-        message: notifMessage,
-        type: status === "fulfilled" ? "success" : "error",
-        related_id: id,
-      });
-    }
+      if (fetchError) throw fetchError;
+      
+      if (!currentRequest || currentRequest.status !== "pending") {
+        showError("This request has already been processed (Approved/Rejected).", undefined, "Already Processed");
+        fetchData();
+        return;
+      }
 
-    // Log to inventory history + distribution if fulfilled
-    if (status === "fulfilled" && request) {
+      // 2. Perform Atomic Update: Update only if it's still 'pending'
+      const { error: updateError } = await supabase
+        .from("supply_requests")
+        .update({ status: newStatus })
+        .eq("id", id)
+        .eq("status", "pending");
+
+      if (updateError) throw updateError;
+
+      const request = currentRequest;
+
+      // 3. Side Effects (Notifications, Inventory, etc.)
+      // Send notification to the user who made the request
+      if (request?.user_id) {
+        const notifTitle = newStatus === "approved" ? "Request Approved" : "Request Rejected";
+        const notifMessage = newStatus === "approved"
+          ? `Your requested item "${request.item_name}" has been approved.`
+          : `Your request for "${request.item_name}" has been rejected.`;
+
+        await supabase.from("notifications").insert({
+          user_id: request.user_id,
+          title: notifTitle,
+          message: notifMessage,
+          type: newStatus === "approved" ? "success" : "error",
+          related_id: id,
+        });
+      }
+
+      // Log to inventory history + distribution if approved
+      if (newStatus === "approved" && request) {
       const { data: invItem } = await supabase
         .from("inventory_items")
         .select("id, stock_quantity, serial_number")
@@ -99,7 +124,7 @@ const Requests = () => {
     }
 
     // Update user_transactions status using related_id for reliable matching
-    const txStatus = status === "fulfilled" ? "Approved" : "Rejected";
+    const txStatus = newStatus === "approved" ? "Approved" : "Rejected";
     const { data: updatedTx } = await supabase.from("user_transactions")
       .update({ status: txStatus })
       .eq("related_id", id)
@@ -119,63 +144,68 @@ const Requests = () => {
       fallbackTxId = fallbackTx?.id || null;
     }
 
-    // Auto-generate receipt on approval
-    if (status === "fulfilled" && request) {
-      const transactionId = updatedTx?.id || fallbackTxId;
-      const receiptNumber = `RCT-${Date.now().toString(36).toUpperCase()}`;
+      // Auto-generate receipt on approval
+      if (newStatus === "approved" && request) {
+        const transactionId = updatedTx?.id || fallbackTxId;
+        const receiptNumber = `RCT-${Date.now().toString(36).toUpperCase()}`;
 
-      // Get category name
-      let categoryName = "";
-      const { data: invForCat } = await supabase
-        .from("inventory_items")
-        .select("category_id, unit_cost, categories(name)")
-        .eq("item_name", request.item_name)
-        .maybeSingle();
-
-      if (invForCat) {
-        categoryName = (invForCat as any).categories?.name || "";
-      }
-      const unitCost = invForCat?.unit_cost || 0;
-
-      // Get admin name
-      let adminName = "";
-      if (user?.id) {
-        const { data: adminProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
+        // Get category name
+        let categoryName = "";
+        const { data: invForCat } = await supabase
+          .from("inventory_items")
+          .select("category_id, unit_cost, categories(name)")
+          .eq("item_name", request.item_name)
           .maybeSingle();
-        adminName = adminProfile?.full_name || "";
+
+        if (invForCat) {
+          categoryName = (invForCat as any).categories?.name || "";
+        }
+        const unitCost = invForCat?.unit_cost || 0;
+
+        // Get admin name
+        let adminName = "";
+        if (user?.id) {
+          const { data: adminProfile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .maybeSingle();
+          adminName = adminProfile?.full_name || "";
+        }
+
+        await supabase.from("receipts").insert({
+          receipt_number: receiptNumber,
+          transaction_id: transactionId,
+          request_id: id,
+          user_id: request.user_id || user?.id,
+          user_name: request.requested_by,
+          department: request.requesting_office,
+          item_name: request.item_name,
+          category: categoryName,
+          quantity: request.quantity,
+          unit_value: unitCost,
+          total_value: unitCost * request.quantity,
+          status: "Approved",
+          approved_by: user?.id,
+          approved_by_name: adminName,
+          date_approved: new Date().toISOString(),
+        });
       }
 
-      await supabase.from("receipts").insert({
-        receipt_number: receiptNumber,
-        transaction_id: transactionId,
-        request_id: id,
-        user_id: request.user_id || user?.id,
-        user_name: request.requested_by,
-        department: request.requesting_office,
-        item_name: request.item_name,
-        category: categoryName,
-        quantity: request.quantity,
-        unit_value: unitCost,
-        total_value: unitCost * request.quantity,
-        status: "Approved",
-        approved_by: user?.id,
-        approved_by_name: adminName,
-        date_approved: new Date().toISOString(),
-      });
+      showSuccess(`Request ${newStatus}`);
+      fetchData();
+    } catch (e: any) {
+      showError(e.message || "An unexpected error occurred", undefined, "Error");
+    } finally {
+      setLoadingIds(prev => ({ ...prev, [id]: false }));
     }
-
-    showSuccess(`Request ${status}`);
-    fetchData();
   };
 
   // Filter requests by search term (item name, office, or requested by)
   const filteredRequests = requests.filter(r =>
-    r.item_name.toLowerCase().includes(search.toLowerCase()) ||
-    r.requesting_office.toLowerCase().includes(search.toLowerCase()) ||
-    r.requested_by.toLowerCase().includes(search.toLowerCase())
+    r.item_name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.requesting_office?.toLowerCase().includes(search.toLowerCase()) ||
+    r.requested_by?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -216,16 +246,30 @@ const Requests = () => {
                   <TableCell>{r.requested_by}</TableCell>
                   <TableCell>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      r.status === "fulfilled" ? "bg-green-100 text-green-700" :
+                      r.status === "approved" || r.status === "fulfilled" ? "bg-green-100 text-green-700" :
                       r.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
-                    }`}>{r.status}</span>
+                    }`}>{r.status === "fulfilled" ? "approved" : r.status}</span>
                   </TableCell>
                   {role === "admin" && (
                     <TableCell>
                       {r.status === "pending" && (
                         <div className="flex gap-1">
-                          <Button size="sm" variant="outline" onClick={() => updateStatus(r.id, "fulfilled")}>Approve</Button>
-                          <Button size="sm" variant="destructive" onClick={() => updateStatus(r.id, "rejected")}>Reject</Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => updateStatus(r.id, "approved")}
+                            disabled={loadingIds[r.id]}
+                          >
+                            {loadingIds[r.id] ? "Processing..." : "Approve"}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            onClick={() => updateStatus(r.id, "rejected")}
+                            disabled={loadingIds[r.id]}
+                          >
+                            {loadingIds[r.id] ? "..." : "Reject"}
+                          </Button>
                         </div>
                       )}
                     </TableCell>

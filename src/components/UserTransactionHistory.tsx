@@ -35,9 +35,10 @@ interface DamagedReturn {
 }
 
 const statusVariant = (status: string) => {
+  if (!status) return "outline";
   switch (status.toLowerCase()) {
-    case "fulfilled":
     case "approved":
+    case "fulfilled":
       return "default";
     case "pending":
       return "secondary";
