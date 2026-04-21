@@ -9,12 +9,14 @@ import { Modal } from "@/components/ui/modal";
 import { StatusModal } from "@/components/ui/status-modal";
 import { useStatusModal } from "@/hooks/useStatusModal";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Send, Pencil, Trash2, MoreHorizontal, AlertCircle, Loader2, PackageX } from "lucide-react";
+import { Search, Send, Pencil, Trash2, MoreHorizontal, AlertCircle, Loader2, PackageX, Folder } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Inventory = () => {
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role, profile } = useAuth();
 
@@ -47,11 +49,20 @@ const Inventory = () => {
 
   useEffect(() => { fetchItems(); }, []);
 
-  const filtered = items.filter(i =>
-    i.item_name.toLowerCase().includes(search.toLowerCase()) ||
-    (i.serial_number && i.serial_number.toLowerCase().includes(search.toLowerCase())) ||
-    (i.description && i.description.toLowerCase().includes(search.toLowerCase()))
-  );
+  const uniqueCategories = Array.from(new Set(items.map(i => i.categories?.name).filter(Boolean))).sort() as string[];
+  
+  const filtered = items.filter(i => {
+    const searchLower = search.toLowerCase();
+    const matchesSearch = 
+      i.item_name.toLowerCase().includes(searchLower) ||
+      (i.serial_number && i.serial_number.toLowerCase().includes(searchLower)) ||
+      (i.description && i.description.toLowerCase().includes(searchLower));
+    
+    const categoryName = i.categories?.name || "Uncategorized";
+    const matchesCategory = selectedCategory === "All" || categoryName === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
 
   const matchesBySerialNumber = (item: any) => {
     return search && item.serial_number && item.serial_number.toLowerCase().includes(search.toLowerCase());
@@ -191,11 +202,35 @@ const Inventory = () => {
 
       <Card>
         <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold">Stock Items ({filtered.length})</h3>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search by name, serial #, description..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <h3 className="font-semibold whitespace-nowrap">Stock Items ({filtered.length})</h3>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="category-filter" className="hidden sm:inline whitespace-nowrap text-muted-foreground text-xs uppercase font-bold">Category:</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger id="category-filter" className="w-full sm:w-[180px] h-9">
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-3.5 h-3.5 text-muted-foreground" />
+                      <SelectValue placeholder="Category" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Categories</SelectItem>
+                    {uniqueCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search by name, serial #, description..." 
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)} 
+                  className="pl-9 h-9" 
+                />
+              </div>
             </div>
           </div>
 
