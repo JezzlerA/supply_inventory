@@ -227,6 +227,17 @@ const ChatWidget = () => {
     return () => { supabase.removeChannel(presenceChannel); };
   }, [user]);
 
+  // Periodic last_seen update
+  useEffect(() => {
+    if (!user) return;
+    const updateLastSeen = async () => {
+      await supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", user.id);
+    };
+    updateLastSeen();
+    const interval = setInterval(updateLastSeen, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, [user]);
+
   const handleTyping = useCallback((value: string) => {
     setInput(value);
   }, []);
@@ -438,7 +449,7 @@ const ChatWidget = () => {
               }
 
               return (
-                <div key={m.id} className={`relative ${activeReactionMessage === m.id ? 'z-50' : 'z-10'}`}>
+                <div key={m.id} className={`relative ${activeReactionMessage === m.id ? 'z-50' : 'z-10'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
                   <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${showAvatar ? "mt-4" : "mt-1.5"}`}>
                     {!isMine && (
                       <div className="w-10 flex-shrink-0 mr-1.5">
@@ -566,7 +577,7 @@ const ChatWidget = () => {
           )}
 
           {!selectedUser && activeTab === "chats" && (
-            <div className="flex-1 overflow-y-auto flex flex-col">
+            <div className="flex-1 overflow-y-auto flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="p-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -580,7 +591,7 @@ const ChatWidget = () => {
                   <button key={u.id} onClick={() => setSelectedUser(u.id)} className="w-full text-left px-4 py-3 hover:bg-muted/50 border-b transition-colors flex items-center gap-3">
                     <div className="relative flex-shrink-0">
                       {u.avatar_url ? <img src={u.avatar_url} alt={u.full_name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center"><span className="text-sm font-semibold">{(u.full_name || "U").charAt(0).toUpperCase()}</span></div>}
-                      {userProfiles[u.id]?.is_online && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />}
+                      <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-card transition-colors duration-500 ${userProfiles[u.id]?.is_online ? "bg-green-500" : "bg-slate-400"}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate flex justify-between items-center">
@@ -590,7 +601,7 @@ const ChatWidget = () => {
                       <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                     </div>
                     {unreadPerUser[u.id] > 0 && (
-                      <div className="ml-2 bg-primary text-primary-foreground text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
+                      <div className="ml-2 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center animate-in zoom-in duration-300 shadow-sm animate-bounce">
                         {unreadPerUser[u.id] > 9 ? "9+" : unreadPerUser[u.id]}
                       </div>
                     )}
