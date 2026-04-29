@@ -14,7 +14,11 @@ const customStorage = {
   getItem: (key: string): string | null => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage.getItem(key);
+        const value = window.localStorage.getItem(key);
+        if (key.includes('auth-token') && value) {
+          console.log('[Supabase Auth] Session found in localStorage');
+        }
+        return value;
       }
     } catch (error) {
       console.warn('localStorage getItem failed, falling back to memory storage');
@@ -25,6 +29,9 @@ const customStorage = {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(key, value);
+        if (key.includes('auth-token')) {
+          console.log('[Supabase Auth] Session saved to localStorage');
+        }
       }
     } catch (error) {
       console.warn('localStorage setItem failed, falling back to memory storage');
@@ -35,6 +42,9 @@ const customStorage = {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(key);
+        if (key.includes('auth-token')) {
+          console.log('[Supabase Auth] Session removed from localStorage');
+        }
       }
     } catch (error) {
       console.warn('localStorage removeItem failed, falling back to memory storage');

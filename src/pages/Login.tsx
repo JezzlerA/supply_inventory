@@ -21,11 +21,21 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    console.log(`[Login] Attempting login for: ${email}`);
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
     if (error) {
+      console.error(`[Login] Login failed: ${error.message}`);
+      setLoading(false);
       showError(error.message, undefined, "Login failed");
     } else {
+      console.log(`[Login] Login successful for: ${data.user?.email}`);
+      if (data.session) {
+        console.log(`[Login] Saving token to localStorage`);
+        localStorage.setItem("token", data.session.access_token);
+      }
+      setLoading(false);
       navigate("/dashboard");
     }
   };
