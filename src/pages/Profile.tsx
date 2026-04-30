@@ -11,7 +11,7 @@ import { StatusModal } from "@/components/ui/status-modal";
 import { useStatusModal } from "@/hooks/useStatusModal";
 
 const Profile = () => {
-  const { user, profile, role } = useAuth();
+  const { user, profile, role, profileLoading } = useAuth();
   const { status, showSuccess, showError, close } = useStatusModal();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -68,82 +68,112 @@ const Profile = () => {
   };
 
   const initials = fullName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+    ? fullName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+    : "U";
 
   const roleLabel = role === "admin" ? "Admin" : "User";
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{roleLabel} Profile</h1>
+    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">{profileLoading ? 'Loading Profile...' : `${roleLabel} Profile`}</h1>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Manage your personal information and preferences</p>
+        </div>
+      </div>
 
-      <Card className="shadow-lg border-0">
-        <CardContent className="p-8">
+      <Card className="shadow-2xl border-0 rounded-[32px] overflow-hidden bg-white/50 backdrop-blur-sm border border-white/20">
+        <CardContent className="p-8 md:p-12">
           {/* Avatar Section */}
-          <div className="flex flex-col items-center mb-8">
-            <Avatar className="w-28 h-28 mb-4 shadow-md ring-4 ring-background">
-              <AvatarImage src={avatarUrl || undefined} alt={fullName} />
-              <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
-                {initials || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <label htmlFor="avatar-upload">
-              <Button variant="outline" size="sm" className="cursor-pointer gap-2" asChild>
-                <span>
-                  <Camera className="w-4 h-4" />
-                  Change Photo
-                </span>
-              </Button>
-              <input
-                id="avatar-upload"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoChange}
-              />
-            </label>
+          <div className="flex flex-col items-center mb-12">
+            {profileLoading ? (
+              <div className="w-32 h-32 rounded-full bg-gray-200 animate-pulse mb-6 border-4 border-white shadow-xl" />
+            ) : (
+              <>
+                <div className="relative group">
+                  <Avatar className="w-32 h-32 mb-6 shadow-2xl ring-4 ring-white transition-transform duration-500 group-hover:scale-105">
+                    <AvatarImage src={avatarUrl || undefined} alt={fullName} className="object-cover" />
+                    <AvatarFallback className="text-3xl font-black bg-primary text-primary-foreground">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label htmlFor="avatar-upload" className="absolute bottom-6 right-0 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-primary/90 transition-colors border-2 border-white">
+                    <Camera className="w-5 h-5" />
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
+                </div>
+                <div className="text-center">
+                  <h2 className="font-bold text-xl text-gray-900">{fullName || "User Name"}</h2>
+                  <p className="text-xs font-black uppercase tracking-widest text-primary mt-1">{roleLabel}</p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Form Fields */}
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Enter your full name"
-              />
-            </div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="fullName" className="text-xs font-black uppercase tracking-widest text-gray-700">Full Name</Label>
+                {profileLoading ? (
+                  <div className="h-12 bg-gray-100 animate-pulse rounded-xl" />
+                ) : (
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter your full name"
+                    className="h-12 rounded-xl border-gray-100 bg-white/80 shadow-sm focus:ring-primary/20 transition-all"
+                  />
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <div className="h-10 px-3 py-2 rounded-md border bg-muted text-muted-foreground flex items-center text-sm font-semibold uppercase tracking-wide">
-                {role || "user"}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-gray-700">Email Address</Label>
+                {profileLoading ? (
+                  <div className="h-12 bg-gray-100 animate-pulse rounded-xl" />
+                ) : (
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="h-12 rounded-xl border-gray-100 bg-white/80 shadow-sm focus:ring-primary/20 transition-all"
+                  />
+                )}
               </div>
             </div>
 
-            <div className="pt-4 flex justify-center">
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest text-gray-700">System Role</Label>
+              {profileLoading ? (
+                <div className="h-12 bg-gray-100 animate-pulse rounded-xl" />
+              ) : (
+                <div className="h-12 px-4 py-2 rounded-xl border border-gray-100 bg-muted/30 text-muted-foreground flex items-center text-sm font-bold uppercase tracking-widest">
+                  {role || "user"}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-8 flex justify-center">
               <Button
                 onClick={handleSave}
-                disabled={saving}
-                className="px-10 bg-[hsl(217,90%,55%)] hover:bg-[hsl(217,90%,48%)] text-white"
+                disabled={saving || profileLoading}
+                className="h-12 px-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 transition-all hover:-translate-y-1 active:translate-y-0"
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? "Saving Changes..." : "Save Profile"}
               </Button>
             </div>
           </div>

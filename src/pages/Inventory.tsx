@@ -17,6 +17,7 @@ const Inventory = () => {
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [loading, setLoading] = useState(true);
   const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role, profile } = useAuth();
 
@@ -43,8 +44,15 @@ const Inventory = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchItems = async () => {
-    const { data } = await supabase.from("inventory_items").select("*, categories(name)").order("updated_at", { ascending: false });
-    setItems(data || []);
+    setLoading(true);
+    try {
+      const { data } = await supabase.from("inventory_items").select("*, categories(name)").order("updated_at", { ascending: false });
+      setItems(data || []);
+    } catch (err) {
+      console.error("Error fetching inventory items:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchItems(); }, []);
@@ -196,25 +204,29 @@ const Inventory = () => {
   };
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold">Inventory</h1>
-      <p className="text-muted-foreground mb-6">Current stock levels in the Supply Room Office</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Inventory</h1>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Current stock levels in the Supply Room Office</p>
+        </div>
+      </div>
 
-      <Card>
+      <Card className="shadow-2xl border-0 rounded-[24px] overflow-hidden bg-white/50 backdrop-blur-sm border border-white/20">
         <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 className="font-semibold whitespace-nowrap">Stock Items ({filtered.length})</h3>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="category-filter" className="hidden sm:inline whitespace-nowrap text-muted-foreground text-xs uppercase font-bold">Category:</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category-filter" className="w-full sm:w-[180px] h-9">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+            <h3 className="font-bold text-lg text-gray-900">Stock Items ({loading ? '...' : filtered.length})</h3>
+            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
+              <div className="flex items-center gap-3">
+                <Label htmlFor="category-filter" className="hidden sm:inline whitespace-nowrap text-muted-foreground text-[11px] uppercase font-black tracking-widest">Category:</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={loading}>
+                  <SelectTrigger id="category-filter" className="w-full sm:w-[200px] h-10 rounded-xl border-gray-100 bg-white shadow-sm focus:ring-primary/20">
                     <div className="flex items-center gap-2">
-                      <Folder className="w-3.5 h-3.5 text-muted-foreground" />
+                      <Folder className="w-4 h-4 text-primary" />
                       <SelectValue placeholder="Category" />
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-gray-100 shadow-2xl">
                     <SelectItem value="All">All Categories</SelectItem>
                     {uniqueCategories.map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
@@ -222,84 +234,109 @@ const Inventory = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <div className="relative w-full xl:w-80">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   placeholder="Search by name, serial #, description..." 
                   value={search} 
                   onChange={e => setSearch(e.target.value)} 
-                  className="pl-9 h-9" 
+                  className="pl-11 h-10 rounded-xl border-gray-100 bg-white shadow-sm focus:bg-white focus:ring-primary/20 transition-all duration-300" 
+                  disabled={loading}
                 />
               </div>
             </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item Name</TableHead>
-                <TableHead>Serial No.</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Unit Cost</TableHead>
-                <TableHead>Total Value</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map(item => {
-                const status = getStatus(item.stock_quantity);
-                return (
-                  <TableRow key={item.id} className={matchesBySerialNumber(item) ? "bg-blue-50 dark:bg-blue-950/20" : ""}>
-                    <TableCell className="font-medium">{item.item_name}</TableCell>
-                    <TableCell className={matchesBySerialNumber(item) ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-muted-foreground"}>
-                      {item.serial_number || "—"}
-                      {matchesBySerialNumber(item) && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">Serial Match</span>}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{item.description || "—"}</TableCell>
-                    <TableCell className="text-primary">{(item as any).categories?.name || "—"}</TableCell>
-                    <TableCell>{item.unit_of_measure}</TableCell>
-                    <TableCell>{item.stock_quantity}</TableCell>
-                    <TableCell>₱{Number(item.unit_cost).toLocaleString()}</TableCell>
-                    <TableCell>₱{(item.stock_quantity * Number(item.unit_cost)).toLocaleString()}</TableCell>
-                    <TableCell><span className={`text-xs px-2 py-1 rounded-full font-medium ${status.cls}`}>{status.label}</span></TableCell>
-                    <TableCell>{item.updated_at?.split("T")[0]}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleRequestClick(item)}>
-                            <Send className="w-4 h-4 mr-2" /> Request Item
-                          </DropdownMenuItem>
-                          {role === "admin" && (
-                            <>
-                              <DropdownMenuItem onClick={() => openEdit(item)}>
-                                <Pencil className="w-4 h-4 mr-2" /> Edit Item
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => { setDeleteItem(item); setDeleteOpen(true); }}>
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete Item
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+          <div className="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-transparent border-gray-100">
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Item Name</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Serial No.</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Description</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Category</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Unit</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Stock</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Unit Cost</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Total Value</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Status</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Last Updated</TableHead>
+                  <TableHead className="text-right font-bold text-[11px] uppercase tracking-wider h-12">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i} className="border-gray-50">
+                      {Array(11).fill(0).map((__, j) => (
+                        <TableCell key={j}><div className="h-4 bg-gray-100 animate-pulse rounded-md" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filtered.map(item => {
+                  const status = getStatus(item.stock_quantity);
+                  return (
+                    <TableRow key={item.id} className={`${matchesBySerialNumber(item) ? "bg-blue-50/50" : "hover:bg-muted/20"} border-gray-50 transition-colors group`}>
+                      <TableCell className="font-bold text-gray-800 py-4">{item.item_name}</TableCell>
+                      <TableCell className={matchesBySerialNumber(item) ? "text-blue-600 font-bold" : "text-muted-foreground font-medium"}>
+                        {item.serial_number || "—"}
+                        {matchesBySerialNumber(item) && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full font-black uppercase tracking-tighter">Serial Match</span>}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs font-medium max-w-[200px] truncate">{item.description || "—"}</TableCell>
+                      <TableCell className="text-primary font-bold text-xs uppercase tracking-tighter">{(item as any).categories?.name || "—"}</TableCell>
+                      <TableCell className="text-xs font-semibold">{item.unit_of_measure}</TableCell>
+                      <TableCell className="font-black text-gray-800">{item.stock_quantity}</TableCell>
+                      <TableCell className="text-xs font-bold">₱{Number(item.unit_cost).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs font-black text-primary">₱{(item.stock_quantity * Number(item.unit_cost)).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-tighter ${status.cls}`}>
+                          {status.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-[11px] font-medium text-muted-foreground">
+                        {item.updated_at ? new Date(item.updated_at).toLocaleDateString() : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted group-hover:scale-110 transition-transform">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl border-gray-100 shadow-2xl p-1.5 min-w-[160px]">
+                            <DropdownMenuItem onClick={() => handleRequestClick(item)} className="cursor-pointer gap-2.5 px-3 py-2.5 rounded-lg font-medium">
+                              <Send className="w-4 h-4 text-primary" /> Request Item
+                            </DropdownMenuItem>
+                            {role === "admin" && (
+                              <>
+                                <DropdownMenuItem onClick={() => openEdit(item)} className="cursor-pointer gap-2.5 px-3 py-2.5 rounded-lg font-medium">
+                                  <Pencil className="w-4 h-4 text-primary" /> Edit Item
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="cursor-pointer gap-2.5 px-3 py-2.5 rounded-lg font-bold text-destructive focus:text-destructive focus:bg-destructive/5" onClick={() => { setDeleteItem(item); setDeleteOpen(true); }}>
+                                  <Trash2 className="w-4 h-4" /> Delete Item
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {!loading && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center py-16">
+                      <div className="flex flex-col items-center gap-3">
+                        <PackageX className="w-12 h-12 text-muted-foreground/30" />
+                        <div className="text-muted-foreground font-bold uppercase tracking-widest text-xs">No matching items found</div>
+                        <Button variant="link" onClick={() => { setSearch(""); setSelectedCategory("All"); }} className="text-xs">Clear all filters</Button>
+                      </div>
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground">No items found</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -316,12 +353,14 @@ const Inventory = () => {
         size="sm"
         isAlert
       >
-        <p className="text-sm text-muted-foreground">
-          Sorry, <strong>"{requestItem?.item_name}"</strong> is currently <strong>out of stock</strong>.
-          Please check back later or contact the Supply Office for assistance.
-        </p>
-        <div className="flex justify-end mt-4">
-          <Button onClick={() => setOutOfStockOpen(false)}>Understood</Button>
+        <div className="p-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Sorry, <strong>"{requestItem?.item_name}"</strong> is currently <strong>out of stock</strong>.
+            Please check back later or contact the Supply Office for assistance.
+          </p>
+          <div className="flex justify-end mt-6">
+            <Button onClick={() => setOutOfStockOpen(false)} className="rounded-xl px-6">Understood</Button>
+          </div>
         </div>
       </Modal>
 
@@ -332,13 +371,13 @@ const Inventory = () => {
         title={<span className="flex items-center gap-2"><Send className="w-5 h-5" />Request: {requestItem?.item_name}</span>}
         size="md"
       >
-        <form onSubmit={handleRequestSubmit} className="space-y-4">
-          <div className="p-3 rounded-lg bg-muted/50 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Available Stock</span>
-            <span className="font-semibold">{requestItem?.stock_quantity} {requestItem?.unit_of_measure}(s)</span>
+        <form onSubmit={handleRequestSubmit} className="space-y-6 p-1">
+          <div className="p-4 rounded-2xl bg-muted/40 flex items-center justify-between border border-muted-foreground/5">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Available Stock</span>
+            <span className="font-black text-primary">{requestItem?.stock_quantity} {requestItem?.unit_of_measure}(s)</span>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="req-quantity">Quantity <span className="text-destructive">*</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="req-quantity" className="text-xs font-black uppercase tracking-widest text-gray-700">Quantity <span className="text-destructive">*</span></Label>
             <Input
               id="req-quantity"
               ref={quantityRef}
@@ -349,28 +388,30 @@ const Inventory = () => {
               onChange={e => setRequestForm(p => ({ ...p, quantity: e.target.value }))}
               required
               placeholder={`Max: ${requestItem?.stock_quantity}`}
+              className="h-11 rounded-xl shadow-sm border-gray-100 focus:ring-primary/20"
             />
           </div>
-          <div className="space-y-1">
-            <Label>Requesting Office</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-gray-700">Requesting Office</Label>
             <Input
               value={(profile as any)?.office_location || ""}
               disabled
-              className="bg-muted text-muted-foreground font-medium cursor-not-allowed"
+              className="h-11 rounded-xl bg-muted/50 text-muted-foreground font-bold cursor-not-allowed border-gray-100"
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="req-requested-by">Requested By <span className="text-destructive">*</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="req-requested-by" className="text-xs font-black uppercase tracking-widest text-gray-700">Requested By <span className="text-destructive">*</span></Label>
             <Input
               id="req-requested-by"
               value={requestForm.requested_by}
               onChange={e => setRequestForm(p => ({ ...p, requested_by: e.target.value }))}
               required
+              className="h-11 rounded-xl shadow-sm border-gray-100 focus:ring-primary/20"
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t">
-            <Button type="button" variant="outline" onClick={() => setRequestOpen(false)} disabled={requestLoading}>Cancel</Button>
-            <Button type="submit" disabled={requestLoading} className="gap-2">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+            <Button type="button" variant="outline" onClick={() => setRequestOpen(false)} disabled={requestLoading} className="rounded-xl px-6">Cancel</Button>
+            <Button type="submit" disabled={requestLoading} className="rounded-xl px-8 shadow-lg shadow-primary/20">
               {requestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Submit Request
             </Button>
@@ -385,57 +426,61 @@ const Inventory = () => {
         title={<span className="flex items-center gap-2"><Pencil className="w-5 h-5" />Edit Item</span>}
         size="md"
       >
-        <form onSubmit={handleEditSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="edit-item-name">Item Name <span className="text-destructive">*</span></Label>
+        <form onSubmit={handleEditSubmit} className="space-y-5 p-1">
+          <div className="space-y-2">
+            <Label htmlFor="edit-item-name" className="text-xs font-black uppercase tracking-widest text-gray-700">Item Name <span className="text-destructive">*</span></Label>
             <Input
               id="edit-item-name"
               autoFocus
               value={editForm.item_name}
               onChange={e => { setEditForm(p => ({ ...p, item_name: e.target.value })); setEditErrors(p => ({ ...p, item_name: "" })); }}
+              className="h-11 rounded-xl shadow-sm border-gray-100"
             />
-            {editErrors.item_name && <p className="text-xs text-destructive">{editErrors.item_name}</p>}
+            {editErrors.item_name && <p className="text-[10px] font-bold text-destructive uppercase mt-1">{editErrors.item_name}</p>}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="edit-desc">Description</Label>
-            <Input id="edit-desc" value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} />
+          <div className="space-y-2">
+            <Label htmlFor="edit-desc" className="text-xs font-black uppercase tracking-widest text-gray-700">Description</Label>
+            <Input id="edit-desc" value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} className="h-11 rounded-xl shadow-sm border-gray-100" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="edit-unit">Unit of Measure <span className="text-destructive">*</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="edit-unit" className="text-xs font-black uppercase tracking-widest text-gray-700">Unit of Measure <span className="text-destructive">*</span></Label>
             <Input
               id="edit-unit"
               value={editForm.unit_of_measure}
               onChange={e => { setEditForm(p => ({ ...p, unit_of_measure: e.target.value })); setEditErrors(p => ({ ...p, unit_of_measure: "" })); }}
+              className="h-11 rounded-xl shadow-sm border-gray-100"
             />
-            {editErrors.unit_of_measure && <p className="text-xs text-destructive">{editErrors.unit_of_measure}</p>}
+            {editErrors.unit_of_measure && <p className="text-[10px] font-bold text-destructive uppercase mt-1">{editErrors.unit_of_measure}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="edit-cost">Unit Cost <span className="text-destructive">*</span></Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-cost" className="text-xs font-black uppercase tracking-widest text-gray-700">Unit Cost (₱) <span className="text-destructive">*</span></Label>
               <Input
                 id="edit-cost"
                 type="number"
                 step="0.01"
                 value={editForm.unit_cost}
                 onChange={e => { setEditForm(p => ({ ...p, unit_cost: e.target.value })); setEditErrors(p => ({ ...p, unit_cost: "" })); }}
+                className="h-11 rounded-xl shadow-sm border-gray-100"
               />
-              {editErrors.unit_cost && <p className="text-xs text-destructive">{editErrors.unit_cost}</p>}
+              {editErrors.unit_cost && <p className="text-[10px] font-bold text-destructive uppercase mt-1">{editErrors.unit_cost}</p>}
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="edit-qty">Stock Quantity <span className="text-destructive">*</span></Label>
+            <div className="space-y-2">
+              <Label htmlFor="edit-qty" className="text-xs font-black uppercase tracking-widest text-gray-700">Stock Quantity <span className="text-destructive">*</span></Label>
               <Input
                 id="edit-qty"
                 type="number"
                 min="0"
                 value={editForm.stock_quantity}
                 onChange={e => { setEditForm(p => ({ ...p, stock_quantity: e.target.value })); setEditErrors(p => ({ ...p, stock_quantity: "" })); }}
+                className="h-11 rounded-xl shadow-sm border-gray-100"
               />
-              {editErrors.stock_quantity && <p className="text-xs text-destructive">{editErrors.stock_quantity}</p>}
+              {editErrors.stock_quantity && <p className="text-[10px] font-bold text-destructive uppercase mt-1">{editErrors.stock_quantity}</p>}
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t">
-            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editLoading}>Cancel</Button>
-            <Button type="submit" disabled={editLoading} className="gap-2">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editLoading} className="rounded-xl px-6">Cancel</Button>
+            <Button type="submit" disabled={editLoading} className="rounded-xl px-8 shadow-lg shadow-primary/20">
               {editLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               Save Changes
             </Button>
@@ -451,22 +496,23 @@ const Inventory = () => {
         size="sm"
         isAlert
       >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete <strong>"{deleteItem?.item_name}"</strong>?
-          This action cannot be undone and will permanently remove the item from inventory.
-        </p>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>Cancel</Button>
-          <Button
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={deleteLoading}
-            className="gap-2"
-          >
-            {deleteLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </Button>
+        <div className="p-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Are you sure you want to delete <strong>"{deleteItem?.item_name}"</strong>?
+            This action cannot be undone and will permanently remove the item from inventory.
+          </p>
+          <div className="flex justify-end gap-3 mt-8">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading} className="rounded-xl px-6">Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              className="rounded-xl px-8 shadow-lg shadow-destructive/20 gap-2"
+            >
+              {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Delete
+            </Button>
+          </div>
         </div>
       </Modal>
 
@@ -481,5 +527,6 @@ const Inventory = () => {
     </div>
   );
 };
+
 
 export default Inventory;

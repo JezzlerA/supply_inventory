@@ -15,7 +15,10 @@ const api = axios.create({
 // Request Interceptor: Attach the JWT token to every request
 api.interceptors.request.use(
   (config) => {
+    // Priority 1: Check localStorage 'token' (manually managed)
+    // Priority 2: Could check Supabase storage, but 'token' should be kept in sync
     const token = localStorage.getItem('token');
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -24,7 +27,7 @@ api.interceptors.request.use(
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
         hasToken: !!token,
-        headers: config.headers
+        url: config.url
       });
     }
     
@@ -45,13 +48,18 @@ api.interceptors.response.use(
     // Debugging: Log API responses with errors
     const status = error.response?.status;
     const data = error.response?.data;
-    
-    console.error(`[API Response Error] ${status}`, data || error.message);
+    const url = error.config?.url;
     
     if (status === 401 || status === 403) {
-      console.warn('Unauthorized request detected. Token might be expired or invalid.');
-      // We don't automatically redirect here to avoid loops, 
-      // but useAuth will handle the state change if the session becomes invalid.
+      console.warn(`[API Auth Error] ${status} on ${url}`, {
+        message: data?.message || error.message,
+        hint: "Token may be expired, invalid, or missing permissions."
+      });
+      
+      // We don't force logout here to prevent loops during refresh
+      // useAuth's onAuthStateChange will handle real session terminations
+    } else {
+      console.error(`[API Error] ${status || 'Network'} on ${url}`, data || error.message);
     }
     
     return Promise.reject(error);
@@ -59,3 +67,4 @@ api.interceptors.response.use(
 );
 
 export default api;
+

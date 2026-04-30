@@ -12,13 +12,21 @@ import { Search } from "lucide-react";
 const Requests = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
   const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
   const { status, showSuccess, showError, close } = useStatusModal();
   const { user, role } = useAuth();
 
   const fetchData = async () => {
-    const { data } = await supabase.from("supply_requests").select("*").order("created_at", { ascending: false });
-    setRequests(data || []);
+    setLoading(true);
+    try {
+      const { data } = await supabase.from("supply_requests").select("*").order("created_at", { ascending: false });
+      setRequests(data || []);
+    } catch (err) {
+      console.error("Error fetching requests:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -209,78 +217,103 @@ const Requests = () => {
   );
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Office Requests</h1>
-        <p className="text-muted-foreground">Track and manage supply requests from campus offices</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Office Requests</h1>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Track and manage supply requests from campus offices</p>
+        </div>
       </div>
 
-      <Card>
+      <Card className="shadow-2xl border-0 rounded-[24px] overflow-hidden bg-white/50 backdrop-blur-sm border border-white/20">
         <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold">Request Log ({filteredRequests.length})</h3>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search by item, office, requester..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
+            <h3 className="font-bold text-lg text-gray-900">Request Log ({loading ? '...' : filteredRequests.length})</h3>
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search by item, office, requester..." 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                className="pl-11 h-10 rounded-xl border-gray-100 bg-white shadow-sm focus:bg-white focus:ring-primary/20 transition-all duration-300" 
+                disabled={loading}
+              />
             </div>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Item</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Office</TableHead>
-                <TableHead>Requested By</TableHead>
-                <TableHead>Status</TableHead>
-                {role === "admin" && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRequests.map(r => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.date_requested}</TableCell>
-                  <TableCell className="font-medium">{r.item_name}</TableCell>
-                  <TableCell>{r.quantity}</TableCell>
-                  <TableCell>{r.requesting_office}</TableCell>
-                  <TableCell>{r.requested_by}</TableCell>
-                  <TableCell>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      r.status === "approved" || r.status === "fulfilled" ? "bg-green-100 text-green-700" :
-                      r.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
-                    }`}>{r.status === "fulfilled" ? "approved" : r.status}</span>
-                  </TableCell>
-                  {role === "admin" && (
-                    <TableCell>
-                      {r.status === "pending" && (
-                        <div className="flex gap-1">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => updateStatus(r.id, "approved")}
-                            disabled={loadingIds[r.id]}
-                          >
-                            {loadingIds[r.id] ? "Processing..." : "Approve"}
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            onClick={() => updateStatus(r.id, "rejected")}
-                            disabled={loadingIds[r.id]}
-                          >
-                            {loadingIds[r.id] ? "..." : "Reject"}
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  )}
+          
+          <div className="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-transparent border-gray-100">
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Date Requested</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Item Requested</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Qty</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Requesting Office</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Requested By</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase tracking-wider h-12">Status</TableHead>
+                  {role === "admin" && <TableHead className="text-right font-bold text-[11px] uppercase tracking-wider h-12">Actions</TableHead>}
                 </TableRow>
-              ))}
-              {filteredRequests.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No requests yet</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i} className="border-gray-50">
+                      {Array(7).fill(0).map((__, j) => (
+                        <TableCell key={j}><div className="h-4 bg-gray-100 animate-pulse rounded-md" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filteredRequests.map(r => (
+                  <TableRow key={r.id} className="border-gray-50 hover:bg-muted/20 transition-colors">
+                    <TableCell className="text-xs font-medium text-muted-foreground">{r.date_requested}</TableCell>
+                    <TableCell className="font-bold text-gray-800">{r.item_name}</TableCell>
+                    <TableCell className="font-black text-primary">{r.quantity}</TableCell>
+                    <TableCell className="text-xs font-bold text-gray-700">{r.requesting_office}</TableCell>
+                    <TableCell className="text-xs font-medium text-gray-600">{r.requested_by}</TableCell>
+                    <TableCell>
+                      <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-tighter ${
+                        r.status === "approved" || r.status === "fulfilled" ? "bg-green-50 text-green-700" :
+                        r.status === "pending" ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-red-50 text-red-700"
+                      }`}>{r.status === "fulfilled" ? "approved" : r.status}</span>
+                    </TableCell>
+                    {role === "admin" && (
+                      <TableCell className="text-right">
+                        {r.status === "pending" && (
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => updateStatus(r.id, "approved")}
+                              disabled={loadingIds[r.id]}
+                              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest px-3 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
+                            >
+                              {loadingIds[r.id] ? "..." : "Approve"}
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              onClick={() => updateStatus(r.id, "rejected")}
+                              disabled={loadingIds[r.id]}
+                              className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest px-3"
+                            >
+                              {loadingIds[r.id] ? "..." : "Reject"}
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+                {!loading && filteredRequests.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-16 text-muted-foreground font-bold uppercase tracking-widest text-xs">
+                      No requests found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
