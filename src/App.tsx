@@ -115,21 +115,28 @@ const AnimatedRoutes = () => {
 const UnsupportedBrowser = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg text-center border-t-4 border-red-500">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Unsupported Browser</h1>
+      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg text-center border-t-4 border-amber-500">
+        <h1 className="text-2xl font-bold text-amber-600 mb-4">Limited Browser Support</h1>
         <p className="text-gray-700 mb-6">
-          This system is not supported on Opera Mini due to compatibility limitations.
-          Please use Chrome, Edge, or Firefox.
+          You are using a browser that may have limited compatibility with this system. 
+          While we have enabled legacy support for older systems like Windows 7, 
+          for the best and most secure experience, we recommend using the latest version of 
+          Chrome, Edge, or Firefox.
         </p>
+        <Button onClick={() => window.location.reload()} className="w-full">
+          Try Anyway
+        </Button>
       </div>
     </div>
   );
 };
 
-const isUnsupportedBrowser = /Opera Mini/i.test(navigator.userAgent);
+// We only strictly block Opera Mini as it cannot run the application logic, 
+// but we allow other older browsers with a warning if needed.
+const isOperaMini = /Opera Mini/i.test(navigator.userAgent);
 
 const App = () => {
-  if (isUnsupportedBrowser) {
+  if (isOperaMini) {
     return <UnsupportedBrowser />;
   }
 
