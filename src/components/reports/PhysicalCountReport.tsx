@@ -201,9 +201,15 @@ const PhysicalCountReport = () => {
   const handlePrint = () => setIsModalOpen(true);
 
   const applyFilterAndPrint = (filter: DateRangeFilter) => {
+    const originalTitle = document.title;
+    document.title = ""; // Clears the header title in most browsers
     setDateFilter(filter);
     setTimeout(() => {
       window.print();
+      // Use a slightly longer timeout for restoration to ensure print dialog is captured
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 500);
     }, 100);
   };
 
@@ -356,20 +362,27 @@ const PhysicalCountReport = () => {
       <div className="hidden print:block print-report font-serif text-black bg-white" style={{ padding: "0.5in", fontSize: "10pt" }}>
         <style>{`
           @media print {
+            body { margin: 0 !important; }
             body * { visibility: hidden !important; }
             .print-report, .print-report * { visibility: visible !important; }
             .print-report {
-              position: absolute !important;
-              left: 0; top: 0;
-              width: 100%;
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0mm 15mm 25mm 15mm !important; /* Internal margins - moved header to absolute top */
               font-family: 'Times New Roman', Times, serif;
               font-size: 10pt;
               color: #000;
               background: #fff;
+              box-sizing: border-box;
             }
             @page { 
               size: A4 landscape; 
-              margin: 15mm 10mm 80mm 10mm;
+              margin: 0mm !important; /* Forces removal of browser headers/footers */
+            }
+            
+            * {
+              box-sizing: border-box;
             }
             
             /* Repeating Header on Each Page */
@@ -393,6 +406,14 @@ const PhysicalCountReport = () => {
             table {
               border-collapse: collapse;
               width: 100%;
+              table-layout: fixed; /* Fixed column widths */
+            }
+            
+            td, th {
+              word-wrap: break-word;
+              overflow-wrap: break-word;
+              word-break: break-word;
+              vertical-align: top;
             }
             
             /* Page header that repeats */
@@ -407,54 +428,71 @@ const PhysicalCountReport = () => {
               bottom: 0;
               left: 0;
               right: 0;
-              padding: 20px 10mm;
+              padding: 10mm 15mm;
               background: #fff;
               page-break-inside: avoid;
             }
           }
         `}</style>
 
-        {/* Page Header - Repeats on every page */}
-        <div className="page-header">
-          <h1
-            style={{
-              fontSize: "13pt",
-              fontWeight: "bold",
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              margin: 0,
-            }}
-          >
-            Report on the Physical Count of Property, Plant and Equipment
-          </h1>
-          <h2
-            style={{
-              fontSize: "12pt",
-              fontWeight: "bold",
-              textTransform: "uppercase",
-              marginTop: "4px",
-            }}
-          >
-            {officeName}
-          </h2>
-        </div>
-
-        <div style={{ marginBottom: "12px", fontSize: "10pt" }}>
-          {dateFilter && dateFilter.label !== "All Time" && (
-            <p style={{ margin: "2px 0", fontWeight: "bold" }}>Period Covered: {dateFilter.label}</p>
-          )}
-          <p style={{ margin: "2px 0" }}><strong>Fund Cluster: {fundCluster}</strong></p>
-          {accountablePerson && (
-            <p style={{ margin: "6px 0" }}>
-              For which <strong>{accountablePerson}</strong>, Negros Oriental State University, is having assumed to such accountability on{" "}
-              <strong>{accountabilityDate ? format(new Date(accountabilityDate), "MMMM d, yyyy") : "_______________"}</strong>.
-            </p>
-          )}
-        </div>
-
         {/* Main Table with repeating header */}
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9pt", marginTop: "8px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9pt", marginTop: "8px", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "15%" }} />
+          </colgroup>
           <thead>
+            {/* Repeating Title Row */}
+            <tr>
+              <th colSpan={10} style={{ border: "none", padding: "0 0 12px 0", textAlign: "center" }}>
+                <h1
+                  style={{
+                    fontSize: "13pt",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                    margin: 0,
+                  }}
+                >
+                  Report on the Physical Count of Property, Plant and Equipment
+                </h1>
+                <h2
+                  style={{
+                    fontSize: "12pt",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    marginTop: "4px",
+                  }}
+                >
+                  {officeName}
+                </h2>
+              </th>
+            </tr>
+            {/* Repeating Details Row */}
+            <tr>
+              <th colSpan={10} style={{ border: "none", padding: "0 0 12px 0", textAlign: "left", fontWeight: "normal" }}>
+                <div style={{ fontSize: "10pt" }}>
+                  {dateFilter && dateFilter.label !== "All Time" && (
+                    <p style={{ margin: "2px 0", fontWeight: "bold" }}>Period Covered: {dateFilter.label}</p>
+                  )}
+                  <p style={{ margin: "2px 0" }}><strong>Fund Cluster: {fundCluster}</strong></p>
+                  {accountablePerson && (
+                    <p style={{ margin: "6px 0" }}>
+                      For which <strong>{accountablePerson}</strong>, Negros Oriental State University, is having assumed to such accountability on{" "}
+                      <strong>{accountabilityDate ? format(new Date(accountabilityDate), "MMMM d, yyyy") : "_______________"}</strong>.
+                    </p>
+                  )}
+                </div>
+              </th>
+            </tr>
             <tr>
               <th rowSpan={3} style={{ border: "1px solid #000", padding: "4px 6px", background: "#f0f0f0", fontWeight: "bold", textTransform: "uppercase", fontSize: "8pt", verticalAlign: "middle" }}>
                 ARTICLE

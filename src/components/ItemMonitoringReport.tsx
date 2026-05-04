@@ -35,7 +35,10 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
           }
           @page { 
             size: A4 portrait; 
-            margin: 15mm;
+            margin: 0;
+          }
+          .print-report {
+            padding: 0mm 15mm 15mm 15mm !important;
           }
           
           /* Repeating Header on Each Page */
