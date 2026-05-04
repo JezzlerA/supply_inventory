@@ -164,6 +164,40 @@ const PhysicalCountReport = () => {
     return Object.values(byOffice);
   };
 
+  const highlightStatus = (text: string) => {
+    if (!text) return text;
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes("damage")) {
+      return (
+        <span 
+          style={{ 
+            color: "#ef4444", 
+            fontWeight: "600",
+            printColorAdjust: "exact", 
+            WebkitPrintColorAdjust: "exact" 
+          }}
+        >
+          {text}
+        </span>
+      );
+    }
+    if (lowerText.includes("non-functional")) {
+      return (
+        <span 
+          style={{ 
+            color: "#f97316", 
+            fontWeight: "600",
+            printColorAdjust: "exact", 
+            WebkitPrintColorAdjust: "exact" 
+          }}
+        >
+          {text}
+        </span>
+      );
+    }
+    return text;
+  };
+
   const handlePrint = () => setIsModalOpen(true);
 
   const applyFilterAndPrint = (filter: DateRangeFilter) => {
@@ -269,7 +303,7 @@ const PhysicalCountReport = () => {
                         <TableCell className="text-center">{row.qtyPropertyCard || ""}</TableCell>
                         <TableCell className="text-center">{row.qtyPhysicalCount || "0"}</TableCell>
                         <TableCell className="text-center">{row.shortageQty || ""}</TableCell>
-                        <TableCell>{row.remarks}</TableCell>
+                        <TableCell>{highlightStatus(row.remarks)}</TableCell>
                       </TableRow>
                     ))}
                     {reportRows.length === 0 && (
@@ -489,7 +523,7 @@ const PhysicalCountReport = () => {
                 <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.qtyPhysicalCount || "0"}</td>
                 <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageQty || ""}</td>
                 <td style={{ border: "1px solid #000", padding: "4px 6px", textAlign: "center" }}>{row.shortageValue > 0 ? row.shortageValue.toLocaleString("en-US", { minimumFractionDigits: 2 }) : ""}</td>
-                <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{row.remarks}</td>
+                <td style={{ border: "1px solid #000", padding: "4px 6px" }}>{highlightStatus(row.remarks)}</td>
               </tr>
             ))}
           </tbody>

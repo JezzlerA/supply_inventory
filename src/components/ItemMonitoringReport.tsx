@@ -71,6 +71,20 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
             text-align: left;
             margin-bottom: 16px;
           }
+
+          .damage-text {
+            color: #ef4444 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            font-weight: bold;
+          }
+
+          .non-functional-text {
+            color: #f97316 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            font-weight: bold;
+          }
         }
       `}</style>
 
@@ -126,7 +140,17 @@ const ItemMonitoringReport = forwardRef<HTMLDivElement, Props>(({ userName, item
               <td className="py-1.5 px-1">{item.serial_number || "—"}</td>
               <td className="py-1.5 px-1">{item.transaction_type}</td>
 
-              <td className="py-1.5 px-1">{item.condition_status}</td>
+              <td className="py-1.5 px-1">
+                <span className={
+                  item.condition_status?.toLowerCase().includes("damage") 
+                    ? "damage-text text-red-600 font-semibold" 
+                    : item.condition_status?.toLowerCase().includes("non-functional")
+                      ? "non-functional-text text-orange-600 font-semibold"
+                      : ""
+                }>
+                  {item.condition_status}
+                </span>
+              </td>
               <td className="py-1.5 px-1">{item.date}</td>
               <td className="py-1.5 px-1">{item.status}</td>
             </tr>
